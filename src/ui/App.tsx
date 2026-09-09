@@ -21,11 +21,28 @@ export const App = () => {
   const stores = Inventory.stores(inventory.groceries);
   const selectedStore = stores.includes(store) ? store : undefined;
   const queue = Inventory.shoppingQueue(inventory.groceries, now, selectedStore);
-  const editedGrocery = typeof editor === 'object'
-    ? inventory.groceries.find(grocery => grocery.id === editor.id)
-    : undefined;
-
   const edit = (grocery: Grocery) => setEditor({ id: grocery.id });
+  const save = (grocery: Grocery): string | undefined => {
+    const error = inventory.save(grocery);
+    if (!error) setEditor(undefined);
+    return error;
+  };
+  const remove = (id: string): string | undefined => {
+    const error = inventory.remove(id);
+    if (!error) setEditor(undefined);
+    return error;
+  };
+
+  const formFor = (grocery?: Grocery) =>
+    <GroceryForm
+      key={grocery?.id ?? 'new'}
+      grocery={grocery}
+      inventory={inventory.groceries}
+      now={now}
+      onSave={save}
+      onRemove={remove}
+      onCancel={() => setEditor(undefined)}
+    />;
 
   return (
     <main class="workspace">
@@ -47,24 +64,7 @@ export const App = () => {
 
       {inventory.error && <p class="notice error" role="alert">{inventory.error}</p>}
 
-      {editor &&
-        <GroceryForm
-          key={editor === 'new' ? 'new' : editor.id}
-          grocery={editedGrocery}
-          inventory={inventory.groceries}
-          now={now}
-          onSave={grocery => {
-            const error = inventory.save(grocery);
-            if (!error) setEditor(undefined);
-            return error;
-          }}
-          onRemove={id => {
-            const error = inventory.remove(id);
-            if (!error) setEditor(undefined);
-            return error;
-          }}
-          onCancel={() => setEditor(undefined)}
-        />}
+      {editor === 'new' && formFor()}
 
       <nav class="store-filters" aria-label="Filter by store">
         {[undefined, ...stores].map(name =>
@@ -89,7 +89,11 @@ export const App = () => {
             </div>
           : <ol>
               {queue.toArray().map(estimate =>
-                <GroceryRow key={estimate.grocery.id} estimate={estimate} onEdit={edit} />)}
+                typeof editor === 'object' && editor.id === estimate.grocery.id
+                  ? <li class="inline-editor" key={estimate.grocery.id}>
+                      {formFor(estimate.grocery)}
+                    </li>
+                  : <GroceryRow key={estimate.grocery.id} estimate={estimate} onEdit={edit} />)}
             </ol>}
       </section>
 

@@ -44,6 +44,7 @@ export const GroceryForm = ({
   const initialAmount = grocery
     ? String(Number(Stock.remainingAt(grocery.stock, now).toFixed(4)))
     : '';
+  const [unit, setUnit] = useState<TimeUnit>(grocery?.stock.usage.unit ?? 'week');
   const [error, setError] = useState('');
   const [confirmingRemoval, setConfirmingRemoval] = useState(false);
 
@@ -109,7 +110,8 @@ export const GroceryForm = ({
           <input aria-label="Amount used" name="usedAmount" type="number" inputMode="decimal" min="0" step="any" defaultValue={grocery?.stock.usage.amount ?? 1} required />
           <span>every</span>
           <input aria-label="Length of interval" name="every" type="number" inputMode="decimal" min="0.01" step="any" defaultValue={grocery?.stock.usage.every ?? 1} required />
-          <select aria-label="Interval unit" name="unit" defaultValue={grocery?.stock.usage.unit ?? 'week'}>
+          <select aria-label="Interval unit" name="unit" value={unit}
+            onInput={event => setUnit(timeUnit(event.currentTarget.value))}>
             <option value="day">days</option>
             <option value="week">weeks</option>
           </select>
