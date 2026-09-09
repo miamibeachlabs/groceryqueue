@@ -14,12 +14,15 @@ const build = await Bun.build({
 if (!build.success)
   throw new AggregateError(build.logs, 'Build failed');
 
-let staticFiles = 0;
+const staticFiles = [
+  'manifest.webmanifest',
+  'icon.svg',
+  'icon-192.png',
+  'icon-512.png',
+  'service-worker.js',
+];
 
-for await (const path of new Bun.Glob('public/*').scan()) {
-  const name = path.slice(path.lastIndexOf('/') + 1);
-  await Bun.write(`${output}/${name}`, Bun.file(path));
-  staticFiles += 1;
-}
+for (const path of staticFiles)
+  await Bun.write(`${output}/${path}`, Bun.file(path));
 
-console.log(`Built ${build.outputs.length} bundled and ${staticFiles} static files.`);
+console.log(`Built ${build.outputs.length} bundled and ${staticFiles.length} static files.`);
