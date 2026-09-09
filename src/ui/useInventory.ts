@@ -5,10 +5,11 @@ import {
   type Inventory as GroceryInventory,
   type InventoryChange,
 } from '../domain/Grocery.ts';
+import type { Store } from '../domain/Store.ts';
 import { LocalInventory } from '../infrastructure/LocalInventory.ts';
 
 type State = Readonly<{
-  groceries: GroceryInventory;
+  inventory: GroceryInventory;
   error?: string;
 }>;
 
@@ -19,9 +20,9 @@ const errorMessage = (error: unknown): string =>
 
 const read = (): State => {
   try {
-    return { groceries: repository.load() };
+    return { inventory: repository.load() };
   } catch (error) {
-    return { groceries: [], error: errorMessage(error) };
+    return { inventory: Inventory.empty(), error: errorMessage(error) };
   }
 };
 
@@ -41,9 +42,9 @@ export const useInventory = () => {
 
   const commit = (change: InventoryChange): string | undefined => {
     try {
-      const groceries = Inventory.change(repository.load(), change);
-      repository.save(groceries);
-      setState({ groceries });
+      const inventory = Inventory.change(repository.load(), change);
+      repository.save(inventory);
+      setState({ inventory });
       return undefined;
     } catch (error) {
       const message = errorMessage(error);
@@ -56,5 +57,8 @@ export const useInventory = () => {
     ...state,
     save: (grocery: Grocery) => commit({ kind: 'save', grocery }),
     remove: (id: string) => commit({ kind: 'remove', id }),
+    addStore: (store: Store) => commit({ kind: 'addStore', store }),
+    renameStore: (id: string, name: string) =>
+      commit({ kind: 'renameStore', id, name }),
   } as const;
 };

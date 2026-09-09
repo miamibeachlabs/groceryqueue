@@ -8,11 +8,12 @@ import {
   type Stock as StockObservation,
   type StockEstimate,
 } from './Stock.ts';
+import { Stores, type Store, type StoreCatalog } from './Store.ts';
 
 export type Grocery = Readonly<{
   id: string;
   name: string;
-  stores: readonly string[];
+  storeIds: readonly string[];
   stock: StockObservation;
 }>;
 
@@ -22,11 +23,18 @@ export type GroceryEstimate = Readonly<{
   tomorrow: StockEstimate;
 }>;
 
-export type Inventory = readonly Grocery[];
+export type Inventory = Readonly<{
+  groceries: readonly Grocery[];
+  stores: StoreCatalog;
+}>;
 
 export type InventoryChange =
   | Readonly<{ kind: 'save'; grocery: Grocery }>
-  | Readonly<{ kind: 'remove'; id: string }>;
+  | Readonly<{ kind: 'remove'; id: string }>
+  | Readonly<{ kind: 'addStore'; store: Store }>
+  | Readonly<{ kind: 'renameStore'; id: string; name: string }>;
+
+const empty = (): Inventory => ({ groceries: [], stores: Stores.defaults });
 
 const estimateAt = (now: number, grocery: Grocery): GroceryEstimate => ({
   grocery,
@@ -44,23 +52,52 @@ const change = (
   change: InventoryChange,
 ): Inventory => {
   if (change.kind === 'remove')
-    return inventory.filter(grocery => grocery.id !== change.id);
+    return {
+      ...inventory,
+      groceries: inventory.groceries.filter(grocery => grocery.id !== change.id),
+    };
 
-  const exists = inventory.some(grocery => grocery.id === change.grocery.id);
-  return exists
-    ? inventory.map(grocery =>
+  if (change.kind === 'addStore')
+    return { ...inventory, stores: Stores.add(inventory.stores, change.store) };
+
+  if (change.kind === 'renameStore') {
+    const name = change.name.trim();
+    if (!name) return inventory;
+    const existing = Stores.find(inventory.stores, name);
+
+    if (existing && existing.id !== change.id)
+      return {
+        stores: inventory.stores.filter(store => store.id !== change.id),
+        groceries: inventory.groceries.map(grocery => ({
+          ...grocery,
+          storeIds: [...new Set(grocery.storeIds.map(id =>
+            id === change.id ? existing.id : id))],
+        })),
+      };
+
+    return {
+      ...inventory,
+      stores: inventory.stores.map(store =>
+        store.id === change.id ? { ...store, name } : store),
+    };
+  }
+
+  const exists = inventory.groceries.some(grocery => grocery.id === change.grocery.id);
+  const groceries = exists
+    ? inventory.groceries.map(grocery =>
         grocery.id === change.grocery.id ? change.grocery : grocery)
-    : [...inventory, change.grocery];
+    : [...inventory.groceries, change.grocery];
+  return { ...inventory, groceries };
 };
 
 const shoppingQueue = (
   inventory: Inventory,
   now: number,
-  store?: string,
+  storeId?: string,
 ): PriorityQueue<GroceryEstimate> => {
-  const visible = store
-    ? inventory.filter(grocery => grocery.stores.includes(store))
-    : inventory;
+  const visible = storeId
+    ? inventory.groceries.filter(grocery => grocery.storeIds.includes(storeId))
+    : inventory.groceries;
 
   return SortedPriorityQueue.from(
     byUrgency,
@@ -68,28 +105,9 @@ const shoppingQueue = (
   );
 };
 
-const stores = (inventory: Inventory): readonly string[] =>
-  [...new Set(inventory.flatMap(grocery => grocery.stores))].sort();
-
-const parseStoreNames = (text: string): readonly string[] => {
-  const names = text
-    .split(',')
-    .map(name => name.trim())
-    .filter(Boolean);
-
-  return names.filter((name, index) =>
-    names.findIndex(candidate =>
-      candidate.toLowerCase() === name.toLowerCase()) === index);
-};
-
 /** Operations over the grocery inventory. */
 export const Inventory = {
+  empty,
   change,
   shoppingQueue,
-  stores,
-} as const;
-
-/** Parsing at the boundary between form text and domain values. */
-export const StoreNames = {
-  parse: parseStoreNames,
 } as const;

@@ -1,18 +1,17 @@
 import { useState } from 'preact/hooks';
-import {
-  Inventory,
-  StoreNames,
-  type Grocery,
-  type Inventory as GroceryInventory,
-} from '../domain/Grocery.ts';
+import type { Grocery } from '../domain/Grocery.ts';
 import { Stock, type TimeUnit } from '../domain/Stock.ts';
+import type { Store, StoreCatalog } from '../domain/Store.ts';
+import { StorePicker } from './StorePicker.tsx';
 
 type Props = Readonly<{
   grocery?: Grocery;
-  inventory: GroceryInventory;
+  stores: StoreCatalog;
   now: number;
   onSave: (grocery: Grocery) => string | undefined;
   onRemove: (id: string) => string | undefined;
+  onAddStore: (store: Store) => string | undefined;
+  onRenameStore: (id: string, name: string) => string | undefined;
   onCancel: () => void;
 }>;
 
@@ -24,27 +23,26 @@ const formValue = (form: FormData, name: string): string => {
 const timeUnit = (value: string): TimeUnit =>
   value === 'week' ? 'week' : 'day';
 
-const canonicalStores = (
-  names: readonly string[],
-  inventory: GroceryInventory,
-): readonly string[] => {
-  const known = Inventory.stores(inventory);
-  return names.map(name =>
-    known.find(store => store.toLowerCase() === name.toLowerCase()) ?? name);
+const formNumber = (form: FormData, name: string, fallback?: number): number => {
+  const value = formValue(form, name);
+  return value === '' && fallback !== undefined ? fallback : Number(value);
 };
 
 export const GroceryForm = ({
   grocery,
-  inventory,
+  stores,
   now,
   onSave,
   onRemove,
+  onAddStore,
+  onRenameStore,
   onCancel,
 }: Props) => {
   const initialAmount = grocery
     ? Number(Stock.estimateAt(grocery.stock, now).remaining.toFixed(4))
     : '';
   const [unit, setUnit] = useState<TimeUnit>(grocery?.stock.usage.unit ?? 'week');
+  const [storeIds, setStoreIds] = useState<readonly string[]>(grocery?.storeIds ?? []);
   const [error, setError] = useState('');
   const [confirmingRemoval, setConfirmingRemoval] = useState(false);
 
@@ -54,18 +52,14 @@ export const GroceryForm = ({
     const name = formValue(form, 'name').trim();
     const amountText = formValue(form, 'amount');
     const amount = Number(amountText);
-    const usedAmount = Number(formValue(form, 'usedAmount'));
-    const every = Number(formValue(form, 'every'));
+    const usedAmount = formNumber(form, 'usedAmount', 1);
+    const every = formNumber(form, 'every', 1);
     if (!name || !Number.isFinite(amount) || !Number.isFinite(usedAmount)
       || !Number.isFinite(every) || amount < 0 || usedAmount < 0 || every <= 0) {
       setError('Enter an item name, nonnegative amounts, and a positive interval.');
       return;
     }
 
-    const stores = canonicalStores(
-      StoreNames.parse(formValue(form, 'stores')),
-      inventory,
-    );
     const stockChanged = !grocery
       || amount !== initialAmount
       || usedAmount !== grocery.stock.usage.amount
@@ -75,7 +69,7 @@ export const GroceryForm = ({
     const saveError = onSave({
       id: grocery?.id ?? crypto.randomUUID(),
       name,
-      stores,
+      storeIds,
       stock: stockChanged
         ? { amount, usage: { amount: usedAmount, every, unit }, observedAt: Date.now() }
         : grocery.stock,
@@ -105,9 +99,9 @@ export const GroceryForm = ({
         <fieldset class="usage-fields">
           <legend>Typical use</legend>
           <span>Use</span>
-          <input aria-label="Amount used" name="usedAmount" type="number" inputMode="decimal" min="0" step="any" defaultValue={grocery?.stock.usage.amount ?? 1} required />
+          <input aria-label="Amount used" name="usedAmount" type="number" inputMode="decimal" min="0" step="any" defaultValue={grocery?.stock.usage.amount ?? ''} placeholder="1" />
           <span>every</span>
-          <input aria-label="Length of interval" name="every" type="number" inputMode="decimal" min="0.01" step="any" defaultValue={grocery?.stock.usage.every ?? 1} required />
+          <input aria-label="Length of interval" name="every" type="number" inputMode="decimal" min="0.01" step="any" defaultValue={grocery?.stock.usage.every ?? ''} placeholder="1" />
           <select aria-label="Interval unit" name="unit" value={unit}
             onInput={event => setUnit(timeUnit(event.currentTarget.value))}>
             <option value="day">days</option>
@@ -118,11 +112,8 @@ export const GroceryForm = ({
           Use the same unit for stock and use: for example, 4 bars in stock and
           use 1 every 3 weeks. After shopping, enter your new total stock.
         </p>
-        <label class="field">
-          <span>Stores</span>
-          <input name="stores" defaultValue={grocery?.stores.join(', ')} placeholder="Whole Foods, Trader Joe’s" maxLength={300} />
-        </label>
-        <p class="field-help">Separate stores with commas.</p>
+        <StorePicker stores={stores} selected={storeIds} onSelect={setStoreIds}
+          onAdd={onAddStore} onRename={onRenameStore} />
         {error && <p class="error" role="alert">{error}</p>}
         <div class="form-actions">
           <button class="primary" type="submit">Save item</button>

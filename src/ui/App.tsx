@@ -18,9 +18,9 @@ export const App = () => {
     return () => window.clearInterval(timer);
   }, [editor]);
 
-  const stores = Inventory.stores(inventory.groceries);
-  const selectedStore = stores.includes(store) ? store : undefined;
-  const queue = Inventory.shoppingQueue(inventory.groceries, now, selectedStore);
+  const { groceries, stores } = inventory.inventory;
+  const selectedStore = stores.some(candidate => candidate.id === store) ? store : undefined;
+  const queue = Inventory.shoppingQueue(inventory.inventory, now, selectedStore);
   const edit = (grocery: Grocery) => setEditor({ id: grocery.id });
   const finish = (error?: string): string | undefined => {
     if (!error) setEditor(undefined);
@@ -31,10 +31,12 @@ export const App = () => {
     <GroceryForm
       key={grocery?.id ?? 'new'}
       grocery={grocery}
-      inventory={inventory.groceries}
+      stores={stores}
       now={now}
       onSave={grocery => finish(inventory.save(grocery))}
       onRemove={id => finish(inventory.remove(id))}
+      onAddStore={inventory.addStore}
+      onRenameStore={inventory.renameStore}
       onCancel={() => setEditor(undefined)}
     />;
 
@@ -53,7 +55,7 @@ export const App = () => {
 
       <div class="intro">
         <p>What will run out first?</p>
-        <span>{inventory.groceries.length} {inventory.groceries.length === 1 ? 'item' : 'items'}</span>
+        <span>{groceries.length} {groceries.length === 1 ? 'item' : 'items'}</span>
       </div>
 
       {inventory.error && <p class="notice error" role="alert">{inventory.error}</p>}
@@ -61,10 +63,10 @@ export const App = () => {
       {editor === 'new' && formFor()}
 
       <nav class="store-filters" aria-label="Filter by store">
-        {[undefined, ...stores].map(name =>
-          <button class="filter" type="button" key={name ?? 'all'}
-            aria-pressed={selectedStore === name} onClick={() => setStore(name ?? '')}>
-            {name ?? 'All stores'}
+        {[undefined, ...stores].map(store =>
+          <button class="filter" type="button" key={store?.id ?? 'all'}
+            aria-pressed={selectedStore === store?.id} onClick={() => setStore(store?.id ?? '')}>
+            {store?.name ?? 'All stores'}
           </button>)}
       </nav>
 
@@ -87,7 +89,8 @@ export const App = () => {
                   ? <li class="inline-editor" key={estimate.grocery.id}>
                       {formFor(estimate.grocery)}
                     </li>
-                  : <GroceryRow key={estimate.grocery.id} estimate={estimate} onEdit={edit} />)}
+                  : <GroceryRow key={estimate.grocery.id} estimate={estimate}
+                      stores={stores} onEdit={edit} />)}
             </ol>}
       </section>
 

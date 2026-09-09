@@ -30,17 +30,20 @@ The browser treats each device and browser separately, so groceries do not sync 
 
 1. `src/data/PriorityQueue.ts` — the abstract queue interface and one private-representation implementation.
 2. `src/domain/Stock.ts` — pure depletion calculations with explicit time.
-3. `src/domain/Grocery.ts` — the grocery model, inventory changes, and grocery-specific priority policy.
-4. `src/infrastructure/LocalInventory.ts` — validation, legacy-data migration, and browser-storage effects.
-5. `src/ui/useInventory.ts` — the narrow bridge between storage and Preact state.
-6. `src/ui/App.tsx`, `GroceryForm.tsx`, and `GroceryRow.tsx` — focused declarative views.
-7. `src/main.tsx` — the browser entry point.
+3. `src/domain/Store.ts` — store identity, naming, and catalog rules.
+4. `src/domain/Grocery.ts` — the grocery model, inventory changes, and grocery-specific priority policy.
+5. `src/infrastructure/LocalInventory.ts` — validation, legacy-data migration, and browser-storage effects.
+6. `src/ui/useInventory.ts` — the narrow bridge between storage and Preact state.
+7. `src/ui/App.tsx`, `GroceryForm.tsx`, `StorePicker.tsx`, and `GroceryRow.tsx` — focused declarative views.
+8. `src/main.tsx` — the browser entry point.
 
 The reusable queue has no UI, runtime, browser, or grocery dependencies. `PriorityQueue<T>` states the abstract behavior; `SortedPriorityQueue<T>` is one immutable implementation. Its sorted-array representation is private, so callers cannot create an invalid queue and another implementation can replace it without changing grocery code.
 
 ## Model
 
 Stock is an observation: amount, a human-scale usage interval, and the time recorded. A usage interval can say “1 every 3 weeks”; the daily rate is derived internally. Remaining stock is also derived, never written on a timer. Stock and usage share a unit chosen by the user. Include that unit in the name when useful, such as `Beef (lb)`.
+
+Stores have stable identities in a catalog; groceries refer to those identities. Renaming a store changes its name everywhere, and renaming it to an existing name merges the two entries. Fresh installations begin with Trader Joe’s and Whole Foods. Existing installations derive their catalog only from their saved groceries, preserving every name without injecting defaults.
 
 Each item includes a depletion bar on the same fixed seven-day scale. The lighter width represents time left today and the darker overlay represents tomorrow. Values beyond seven days stop at the right edge, keeping attention on items that need action soon without distorting comparisons.
 

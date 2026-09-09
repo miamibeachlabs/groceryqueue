@@ -1,7 +1,9 @@
 import type { Grocery, GroceryEstimate } from '../domain/Grocery.ts';
+import type { StoreCatalog } from '../domain/Store.ts';
 
 type Props = Readonly<{
   estimate: GroceryEstimate;
+  stores: StoreCatalog;
   onEdit: (grocery: Grocery) => void;
 }>;
 
@@ -27,7 +29,7 @@ const usageText = (grocery: Grocery): string => {
   return `${number.format(amount)} every ${number.format(every)} ${plural}`;
 };
 
-export const GroceryRow = ({ estimate, onEdit }: Props) => {
+export const GroceryRow = ({ estimate, stores, onEdit }: Props) => {
   const { grocery, today, tomorrow } = estimate;
   const { remaining, daysLeft } = today;
   const todayWidth = positionOnHorizon(daysLeft);
@@ -47,7 +49,12 @@ export const GroceryRow = ({ estimate, onEdit }: Props) => {
           <p class="depletion-key"><span>Today</span><span>Tomorrow</span></p>
           <p class="depletion-scale"><span>0</span><span>7 days</span></p>
         </div>
-        <p class="stores">{grocery.stores.join(' · ') || 'No store specified'}</p>
+        <p class="stores">
+          {grocery.storeIds
+            .map(id => stores.find(store => store.id === id)?.name)
+            .filter(Boolean)
+            .join(' · ') || 'No store specified'}
+        </p>
       </div>
       <div class="item-action">
         <span class="time-left">{duration(daysLeft)}</span>
