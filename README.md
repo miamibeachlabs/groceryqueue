@@ -14,7 +14,9 @@ bun run build
 
 Preact is the sole application dependency. Bun installs it, serves the HTML entry point, runs the tests, invokes the pinned TypeScript compiler from its cache, and produces the static build. There is no Vite, Astro, Tailwind, Node runtime, server framework, or component library.
 
-The production build consists only of static browser files in `dist`. Cloudflare Pages can build it with the command above and publish that directory. No server, database, account, paid service, Node runtime, or Cloudflare Function is involved. Deployment has not been configured or performed.
+The production build consists only of static browser files in `dist`. `wrangler.jsonc` configures Cloudflare Workers Static Assets to publish that directory. It contains no Worker script and keeps `run_worker_first` disabled, so requests are served directly as static assets. A connected Cloudflare build should run `bun run build`, then `bunx wrangler deploy`.
+
+No server, database, account, paid service, Node runtime, or Cloudflare Function is involved.
 
 ## Offline use
 
