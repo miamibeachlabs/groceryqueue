@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "bun index.html",
-    "build": "bun build index.html --outdir dist --minify",
+    "build": "bun run scripts/build.ts",
     "check": "bunx --bun typescript@5.9.3 --noEmit",
     "test": "bun test"
   },

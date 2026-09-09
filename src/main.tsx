@@ -5,3 +5,7 @@ const root = document.querySelector('#app');
 if (!root) throw new Error('Missing application root');
 
 render(<App />, root);
+
+if ('serviceWorker' in navigator)
+  window.addEventListener('load', () =>
+    navigator.serviceWorker.register('./service-worker.js'));

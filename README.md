@@ -16,6 +16,14 @@ Preact is the sole application dependency. Bun installs it, serves the HTML entr
 
 The production build consists only of static browser files in `dist`. Cloudflare Pages can build it with the command above and publish that directory. No server, database, account, paid service, Node runtime, or Cloudflare Function is involved. Deployment has not been configured or performed.
 
+## Offline use
+
+The app is a progressive web app. Visit it once while online so the browser can download its files, then it can open and work without an Internet connection. It makes no requests to external applications or services. Grocery data stays in this browser's local storage.
+
+On iPhone, open the deployed app in Safari and choose **Share → Add to Home Screen**. On Android, use the browser's **Install app** or **Add to Home screen** command. The installed app opens in its own window and uses the same local data as the browser that installed it.
+
+The browser treats each device and browser separately, so groceries do not sync between them. Clearing the app's site data removes both the groceries and its downloaded offline files. Service workers require HTTPS on a deployed site; local development is allowed on `localhost`.
+
 ## Read the code
 
 1. `src/data/PriorityQueue.ts` — the abstract queue interface and one private-representation implementation.
