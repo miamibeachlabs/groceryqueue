@@ -1,0 +1,14 @@
+{
+  "name": "groceries",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun index.html",
+    "build": "bun build index.html --outdir dist --minify",
+    "check": "bunx --bun typescript@5.9.3 --noEmit",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "preact": "10.29.8"
+  }
+}

@@ -1,0 +1,14 @@
+# testing
+/coverage
+
+# Bun dependencies
+/node_modules/
+
+# misc
+.DS_Store
+
+# local environment
+.env*
+
+# generated files
+/dist/
