@@ -38,16 +38,11 @@ const isGrocery = (value: unknown): value is Grocery =>
   && value.stores.every(isText)
   && isStock(value.stock);
 
-const hasUniqueIds = (groceries: readonly Grocery[]): boolean =>
-  new Set(groceries.map(grocery => grocery.id)).size === groceries.length;
+const inventoryFrom = (value: unknown): Inventory | undefined => {
+  if (!Array.isArray(value) || !value.every(isGrocery)) return undefined;
 
-const decodeCurrent = (value: Record<string, unknown>): Inventory | undefined => {
-  if (value.version !== 3
-    || !Array.isArray(value.groceries)
-    || !value.groceries.every(isGrocery)
-    || !hasUniqueIds(value.groceries)) return undefined;
-
-  return value.groceries;
+  const ids = value.map(grocery => grocery.id);
+  return new Set(ids).size === ids.length ? value : undefined;
 };
 
 const usageFromDailyRate = (value: unknown) => {
@@ -61,11 +56,11 @@ const usageFromDailyRate = (value: unknown) => {
     : { amount: 1, every: intervalInDays, unit: 'day' as const };
 };
 
-const decodeLegacy = (value: Record<string, unknown>): Inventory | undefined => {
-  const items = value.version === 1 ? value.items : value.groceries;
-  const rateName = value.version === 1 ? 'perDay' : 'usedPerDay';
-  if ((value.version !== 1 && value.version !== 2) || !Array.isArray(items)) return undefined;
-
+const decodeLegacy = (
+  items: unknown,
+  rateName: 'perDay' | 'usedPerDay',
+): Inventory | undefined => {
+  if (!Array.isArray(items)) return undefined;
   const groceries: Grocery[] = [];
   for (const item of items) {
     if (!isRecord(item) || !isRecord(item.stock)) return undefined;
@@ -87,15 +82,23 @@ const decodeLegacy = (value: Record<string, unknown>): Inventory | undefined => 
     groceries.push(grocery);
   }
 
-  if (!hasUniqueIds(groceries)) return undefined;
-  return groceries;
+  return inventoryFrom(groceries);
+};
+
+const inventoryByVersion = (value: Record<string, unknown>): Inventory | undefined => {
+  switch (value.version) {
+    case 1: return decodeLegacy(value.items, 'perDay');
+    case 2: return decodeLegacy(value.groceries, 'usedPerDay');
+    case 3: return inventoryFrom(value.groceries);
+    default: return undefined;
+  }
 };
 
 const decode = (text: string): Inventory => {
   const value: unknown = JSON.parse(text);
   if (!isRecord(value)) throw new Error(invalidData);
 
-  const inventory = decodeCurrent(value) ?? decodeLegacy(value);
+  const inventory = inventoryByVersion(value);
   if (!inventory) throw new Error(invalidData);
   return inventory;
 };

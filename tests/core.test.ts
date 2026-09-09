@@ -15,12 +15,12 @@ const milk: Grocery = {
 
 test('stock is derived from an observation without changing it', () => {
   expect(Usage.perDay({ amount: 1, every: 3, unit: 'week' })).toBeCloseTo(1 / 21);
-  expect(Stock.remainingAt(milk.stock, 4.5 * day)).toBe(0.5);
-  expect(Stock.remainingAt(milk.stock, 20 * day)).toBe(0);
-  expect(Stock.remainingAt(milk.stock, 0)).toBe(1);
+  expect(Stock.estimateAt(milk.stock, 4.5 * day).remaining).toBe(0.5);
+  expect(Stock.estimateAt(milk.stock, 20 * day).remaining).toBe(0);
+  expect(Stock.estimateAt(milk.stock, 0).remaining).toBe(1);
   const unused = { ...milk.stock, usage: { ...milk.stock.usage, amount: 0 } };
-  expect(Stock.daysLeftAt(unused, 4 * day)).toBe(Infinity);
-  expect(Stock.daysLeftAt({ ...unused, amount: 0 }, 4 * day)).toBe(0);
+  expect(Stock.estimateAt(unused, 4 * day).daysLeft).toBe(Infinity);
+  expect(Stock.estimateAt({ ...unused, amount: 0 }, 4 * day).daysLeft).toBe(0);
   expect(milk.stock.amount).toBe(1);
 });
 
@@ -64,7 +64,7 @@ test('inventory changes are immutable and shopping order is derived at a given t
     .toEqual(['beef', 'milk']);
   expect(Inventory.shoppingQueue(groceries, 3 * day, 'Whole Foods').peek()?.grocery.id)
     .toBe('milk');
-  expect(Inventory.shoppingQueue(groceries, day).peek()?.daysLeftTomorrow).toBe(1);
+  expect(Inventory.shoppingQueue(groceries, day).peek()?.tomorrow.daysLeft).toBe(1);
   expect(Inventory.change(groceries, { kind: 'save', grocery: updated })).toEqual([updated, beef]);
   expect(Inventory.change(groceries, { kind: 'remove', id: milk.id })).toEqual([beef]);
   expect(groceries[0]?.stock.amount).toBe(1);

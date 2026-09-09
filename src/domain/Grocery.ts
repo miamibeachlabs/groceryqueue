@@ -3,7 +3,11 @@ import {
   type Comparator,
   type PriorityQueue,
 } from '../data/PriorityQueue.ts';
-import { Stock, type Stock as StockObservation } from './Stock.ts';
+import {
+  Stock,
+  type Stock as StockObservation,
+  type StockEstimate,
+} from './Stock.ts';
 
 export type Grocery = Readonly<{
   id: string;
@@ -14,9 +18,8 @@ export type Grocery = Readonly<{
 
 export type GroceryEstimate = Readonly<{
   grocery: Grocery;
-  remaining: number;
-  daysLeft: number;
-  daysLeftTomorrow: number;
+  today: StockEstimate;
+  tomorrow: StockEstimate;
 }>;
 
 export type Inventory = readonly Grocery[];
@@ -27,14 +30,13 @@ export type InventoryChange =
 
 const estimateAt = (now: number, grocery: Grocery): GroceryEstimate => ({
   grocery,
-  remaining: Stock.remainingAt(grocery.stock, now),
-  daysLeft: Stock.daysLeftAt(grocery.stock, now),
-  daysLeftTomorrow: Stock.daysLeftAt(grocery.stock, now + 86_400_000),
+  today: Stock.estimateAt(grocery.stock, now),
+  tomorrow: Stock.estimateAfter(grocery.stock, now, 1),
 });
 
 const byUrgency: Comparator<GroceryEstimate> = (left, right) =>
-  left.daysLeft < right.daysLeft ? -1
-  : left.daysLeft > right.daysLeft ? 1
+  left.today.daysLeft < right.today.daysLeft ? -1
+  : left.today.daysLeft > right.today.daysLeft ? 1
   : 0;
 
 const change = (

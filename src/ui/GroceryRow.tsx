@@ -28,9 +28,10 @@ const usageText = (grocery: Grocery): string => {
 };
 
 export const GroceryRow = ({ estimate, onEdit }: Props) => {
-  const { grocery, remaining, daysLeft, daysLeftTomorrow } = estimate;
+  const { grocery, today, tomorrow } = estimate;
+  const { remaining, daysLeft } = today;
   const todayWidth = positionOnHorizon(daysLeft);
-  const tomorrowWidth = positionOnHorizon(daysLeftTomorrow);
+  const tomorrowWidth = positionOnHorizon(tomorrow.daysLeft);
 
   return (
     <li class={urgency(daysLeft)}>
@@ -38,10 +39,9 @@ export const GroceryRow = ({ estimate, onEdit }: Props) => {
         <h2>{grocery.name}</h2>
         <p>{number.format(remaining)} left · use {usageText(grocery)}</p>
         <div class="depletion" role="img"
-          aria-label={`${duration(daysLeft)} today; ${duration(daysLeftTomorrow)} tomorrow; seven-day scale`}>
-          <span class="today" style={{ width: `${todayWidth}%` }}>
-            <span class="tomorrow" style={{ width: `${todayWidth === 0 ? 0 : 100 * tomorrowWidth / todayWidth}%` }} />
-          </span>
+          aria-label={`${duration(daysLeft)} today; ${duration(tomorrow.daysLeft)} tomorrow; seven-day scale`}>
+          <span class="today" style={{ width: `${todayWidth}%` }} />
+          <span class="tomorrow" style={{ width: `${tomorrowWidth}%` }} />
         </div>
         <div class="depletion-caption">
           <p class="depletion-key"><span>Today</span><span>Tomorrow</span></p>

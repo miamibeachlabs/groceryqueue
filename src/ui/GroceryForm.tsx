@@ -42,7 +42,7 @@ export const GroceryForm = ({
   onCancel,
 }: Props) => {
   const initialAmount = grocery
-    ? String(Number(Stock.remainingAt(grocery.stock, now).toFixed(4)))
+    ? Number(Stock.estimateAt(grocery.stock, now).remaining.toFixed(4))
     : '';
   const [unit, setUnit] = useState<TimeUnit>(grocery?.stock.usage.unit ?? 'week');
   const [error, setError] = useState('');
@@ -56,8 +56,6 @@ export const GroceryForm = ({
     const amount = Number(amountText);
     const usedAmount = Number(formValue(form, 'usedAmount'));
     const every = Number(formValue(form, 'every'));
-    const unit = timeUnit(formValue(form, 'unit'));
-
     if (!name || !Number.isFinite(amount) || !Number.isFinite(usedAmount)
       || !Number.isFinite(every) || amount < 0 || usedAmount < 0 || every <= 0) {
       setError('Enter an item name, nonnegative amounts, and a positive interval.');
@@ -69,7 +67,7 @@ export const GroceryForm = ({
       inventory,
     );
     const stockChanged = !grocery
-      || amountText !== initialAmount
+      || amount !== initialAmount
       || usedAmount !== grocery.stock.usage.amount
       || every !== grocery.stock.usage.every
       || unit !== grocery.stock.usage.unit;

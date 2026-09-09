@@ -12,6 +12,11 @@ export type Stock = Readonly<{
   observedAt: number;
 }>;
 
+export type StockEstimate = Readonly<{
+  remaining: number;
+  daysLeft: number;
+}>;
+
 const millisecondsPerDay = 86_400_000;
 
 const daysIn = (usage: Usage): number =>
@@ -20,25 +25,25 @@ const daysIn = (usage: Usage): number =>
 const perDay = (usage: Usage): number =>
   usage.amount / daysIn(usage);
 
-const remainingAt = (stock: Stock, now: number): number => {
-  const elapsedDays = Math.max(0, now - stock.observedAt) / millisecondsPerDay;
-  return Math.max(0, stock.amount - elapsedDays * perDay(stock.usage));
-};
-
-const daysLeftAt = (stock: Stock, now: number): number => {
-  const remaining = remainingAt(stock, now);
-
-  if (remaining === 0) return 0;
+const estimateAt = (stock: Stock, now: number): StockEstimate => {
   const dailyUse = perDay(stock.usage);
-  if (dailyUse === 0) return Infinity;
-  return remaining / dailyUse;
+  const elapsedDays = Math.max(0, now - stock.observedAt) / millisecondsPerDay;
+  const remaining = Math.max(0, stock.amount - elapsedDays * dailyUse);
+  const daysLeft = remaining === 0 ? 0
+    : dailyUse === 0 ? Infinity
+    : remaining / dailyUse;
+
+  return { remaining, daysLeft };
 };
+
+const estimateAfter = (stock: Stock, now: number, days: number): StockEstimate =>
+  estimateAt(stock, now + days * millisecondsPerDay);
 
 /** Calculations over a human-scale usage interval. */
 export const Usage = { perDay } as const;
 
 /** Calculations over a stock observation. */
 export const Stock = {
-  remainingAt,
-  daysLeftAt,
+  estimateAt,
+  estimateAfter,
 } as const;

@@ -22,13 +22,7 @@ export const App = () => {
   const selectedStore = stores.includes(store) ? store : undefined;
   const queue = Inventory.shoppingQueue(inventory.groceries, now, selectedStore);
   const edit = (grocery: Grocery) => setEditor({ id: grocery.id });
-  const save = (grocery: Grocery): string | undefined => {
-    const error = inventory.save(grocery);
-    if (!error) setEditor(undefined);
-    return error;
-  };
-  const remove = (id: string): string | undefined => {
-    const error = inventory.remove(id);
+  const finish = (error?: string): string | undefined => {
     if (!error) setEditor(undefined);
     return error;
   };
@@ -39,8 +33,8 @@ export const App = () => {
       grocery={grocery}
       inventory={inventory.groceries}
       now={now}
-      onSave={save}
-      onRemove={remove}
+      onSave={grocery => finish(inventory.save(grocery))}
+      onRemove={id => finish(inventory.remove(id))}
       onCancel={() => setEditor(undefined)}
     />;
 
@@ -68,7 +62,7 @@ export const App = () => {
 
       <nav class="store-filters" aria-label="Filter by store">
         {[undefined, ...stores].map(name =>
-          <button class="filter" type="button"
+          <button class="filter" type="button" key={name ?? 'all'}
             aria-pressed={selectedStore === name} onClick={() => setStore(name ?? '')}>
             {name ?? 'All stores'}
           </button>)}
@@ -82,7 +76,7 @@ export const App = () => {
         {!inventory.error && queue.size === 0
           ? <div class="empty">
               <h2>Your list starts here.</h2>
-              <p>Add an item, how much you have, and how much you use each day.</p>
+              <p>Add an item, how much you have, and how often you use it.</p>
               <button class="primary" type="button" onClick={() => setEditor('new')}>
                 Add your first item
               </button>
