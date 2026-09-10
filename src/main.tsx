@@ -7,6 +7,7 @@ if (!root) throw new Error('Missing application root');
 render(<App />, root);
 
 if ('serviceWorker' in navigator)
-  window.addEventListener('load', () =>
-    navigator.serviceWorker.register('./service-worker.js')
-      .catch(error => console.error('Offline installation failed.', error)));
+  window.addEventListener('load', () => {
+    void navigator.serviceWorker.register('./service-worker.js')
+      .catch(error => console.error('Offline installation failed.', error));
+  });

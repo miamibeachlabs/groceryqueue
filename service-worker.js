@@ -1,5 +1,6 @@
-const cacheName = 'grocery-queue-v1';
-const staticFiles = [
+const cachePrefix = 'grocery-queue-';
+const cacheName = `${cachePrefix}__BUILD__`;
+const appShell = [
   './',
   './manifest.webmanifest',
   './icon.svg',
@@ -12,8 +13,10 @@ const localReferences = html =>
     .map(match => match[1])
     .filter(path => new URL(path, self.location).origin === self.location.origin);
 
-const install = async () => {
+const downloadApp = async () => {
   const page = await fetch('./');
+  if (!page.ok) throw new Error(`Could not download app: ${page.status}`);
+
   const html = await page.text();
   const cache = await caches.open(cacheName);
 
@@ -22,38 +25,35 @@ const install = async () => {
     status: page.status,
     statusText: page.statusText,
   }));
-  await cache.addAll([...staticFiles.slice(1), ...localReferences(html)]);
+  await cache.addAll([...new Set([
+    ...appShell.slice(1),
+    ...localReferences(html),
+  ])]);
 };
 
 self.addEventListener('install', event => {
-  event.waitUntil(install().then(() => self.skipWaiting()));
+  event.waitUntil(downloadApp());
 });
 
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys()
       .then(names => Promise.all(names
-        .filter(name => name !== cacheName)
+        .filter(name => name.startsWith(cachePrefix) && name !== cacheName)
         .map(name => caches.delete(name))))
       .then(() => self.clients.claim()),
   );
 });
 
 self.addEventListener('fetch', event => {
-  const sameOrigin = new URL(event.request.url).origin === self.location.origin;
+  const request = event.request;
+  const sameOrigin = new URL(request.url).origin === self.location.origin;
 
-  if (event.request.method !== 'GET' || !sameOrigin) return;
+  if (request.method !== 'GET' || !sameOrigin) return;
 
-  event.respondWith(
-      fetch(event.request)
-        .then(async response => {
-          if (response.ok)
-            await (await caches.open(cacheName)).put(event.request, response.clone());
-        return response;
-      })
-      .catch(async () =>
-        await caches.match(event.request)
-        ?? (event.request.mode === 'navigate' ? caches.match('./') : undefined)
-        ?? Response.error()),
-  );
+  event.respondWith((async () =>
+    await caches.match(request)
+    ?? (request.mode === 'navigate' ? await caches.match('./') : undefined)
+    ?? fetch(request)
+  )());
 });

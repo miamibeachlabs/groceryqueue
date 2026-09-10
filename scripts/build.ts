@@ -19,10 +19,22 @@ const staticFiles = [
   'icon.svg',
   'icon-192.png',
   'icon-512.png',
-  'service-worker.js',
 ];
 
 for (const path of staticFiles)
   await Bun.write(`${output}/${path}`, Bun.file(path));
 
-console.log(`Built ${build.outputs.length} bundled and ${staticFiles.length} static files.`);
+const fingerprint = new Bun.CryptoHasher('sha256');
+const builtFiles = await Array.fromAsync(new Bun.Glob(`${output}/*`).scan());
+for (const path of builtFiles.sort()) {
+  fingerprint.update(path);
+  fingerprint.update(await Bun.file(path).arrayBuffer());
+}
+
+const version = fingerprint.digest('hex').slice(0, 12);
+const serviceWorker = (await Bun.file('service-worker.js').text())
+  .replace('__BUILD__', version);
+
+await Bun.write(`${output}/service-worker.js`, serviceWorker);
+
+console.log(`Built ${build.outputs.length} bundled and ${staticFiles.length + 1} static files (${version}).`);

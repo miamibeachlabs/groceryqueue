@@ -20,7 +20,9 @@ No server, database, account, paid service, Node runtime, or Cloudflare Function
 
 ## Offline use
 
-The app is a progressive web app. Visit it once while online so the browser can download its files, then it can open and work without an Internet connection. It makes no requests to external applications or services. Grocery data stays in this browser's local storage.
+The app is an offline-first progressive web app. Visit it once while online so the browser can download the complete app. After that it launches from its installed files and remains fully usable in airplane mode; startup never waits for a network request. Grocery data stays in this browser's local storage.
+
+When a connection happens to be available, the browser checks quietly for a newer build after the current app has loaded. It downloads an update as a complete new version and uses it after the old app windows have closed. A failed or interrupted download leaves the installed version intact.
 
 On iPhone, open the deployed app in Safari and choose **Share → Add to Home Screen**. On Android, use the browser's **Install app** or **Add to Home screen** command. The installed app opens in its own window and uses the same local data as the browser that installed it.
 
