@@ -4,23 +4,24 @@ import {
   type PriorityQueue,
 } from '../data/PriorityQueue.ts';
 import {
-  Stock,
-  type Stock as StockObservation,
-  type StockEstimate,
-} from './Stock.ts';
+  InventoryHistory,
+  type InventoryEstimate,
+  type InventoryHistory as History,
+} from './InventoryHistory.ts';
 import { Stores, type Store, type StoreCatalog } from './Store.ts';
 
 export type Grocery = Readonly<{
   id: string;
   name: string;
   storeIds: readonly string[];
-  stock: StockObservation;
+  usualRestock: number;
+  history: History;
 }>;
 
 export type GroceryEstimate = Readonly<{
   grocery: Grocery;
-  today: StockEstimate;
-  tomorrow: StockEstimate;
+  today: InventoryEstimate;
+  tomorrow: InventoryEstimate;
 }>;
 
 export type Inventory = Readonly<{
@@ -34,12 +35,18 @@ export type InventoryChange =
   | Readonly<{ kind: 'addStore'; store: Store }>
   | Readonly<{ kind: 'renameStore'; id: string; name: string }>;
 
+export type StockCountResult =
+  | Readonly<{ kind: 'recorded'; inventory: Inventory }>
+  | Readonly<{ kind: 'missingRestock'; amount: number }>;
+
+const day = 86_400_000;
+
 const empty = (): Inventory => ({ groceries: [], stores: Stores.defaults });
 
 const estimateAt = (now: number, grocery: Grocery): GroceryEstimate => ({
   grocery,
-  today: Stock.estimateAt(grocery.stock, now),
-  tomorrow: Stock.estimateAfter(grocery.stock, now, 1),
+  today: InventoryHistory.estimateAt(grocery.history, now),
+  tomorrow: InventoryHistory.estimateAt(grocery.history, now + day),
 });
 
 const byUrgency: Comparator<GroceryEstimate> = (left, right) =>
@@ -47,10 +54,49 @@ const byUrgency: Comparator<GroceryEstimate> = (left, right) =>
   : left.today.daysLeft > right.today.daysLeft ? 1
   : 0;
 
-const change = (
+const update = (
   inventory: Inventory,
-  change: InventoryChange,
-): Inventory => {
+  id: string,
+  transform: (grocery: Grocery) => Grocery,
+): Inventory => ({
+  ...inventory,
+  groceries: inventory.groceries.map(grocery =>
+    grocery.id === id ? transform(grocery) : grocery),
+});
+
+const restock = (
+  inventory: Inventory,
+  id: string,
+  amount: number,
+  at: number,
+): Inventory => update(inventory, id, grocery => ({
+  ...grocery,
+  usualRestock: amount,
+  history: InventoryHistory.restock(grocery.history, amount, at),
+}));
+
+const count = (
+  inventory: Inventory,
+  id: string,
+  amount: number,
+  at: number,
+): StockCountResult => {
+  const grocery = inventory.groceries.find(candidate => candidate.id === id);
+  if (!grocery) return { kind: 'recorded', inventory };
+  const result = InventoryHistory.observe(grocery.history, amount, at);
+
+  return result.kind === 'missingRestock'
+    ? result
+    : {
+        kind: 'recorded',
+        inventory: update(inventory, id, item => ({
+          ...item,
+          history: result.history,
+        })),
+      };
+};
+
+const change = (inventory: Inventory, change: InventoryChange): Inventory => {
   if (change.kind === 'remove')
     return {
       ...inventory,
@@ -109,5 +155,7 @@ const shoppingQueue = (
 export const Inventory = {
   empty,
   change,
+  restock,
+  count,
   shoppingQueue,
 } as const;

@@ -4,6 +4,9 @@ import type { StoreCatalog } from '../domain/Store.ts';
 type Props = Readonly<{
   estimate: GroceryEstimate;
   stores: StoreCatalog;
+  onRestock: (grocery: Grocery) => void;
+  onOtherRestock: (grocery: Grocery) => void;
+  onCount: (grocery: Grocery) => void;
   onEdit: (grocery: Grocery) => void;
 }>;
 
@@ -19,31 +22,29 @@ const urgency = (days: number): string =>
   days <= 1 ? 'urgent' : days <= 3 ? 'soon' : '';
 
 const horizonInDays = 7;
-
 const positionOnHorizon = (days: number): number =>
   Math.min(100, 100 * days / horizonInDays);
 
-const usageText = (grocery: Grocery): string => {
-  const { amount, every, unit } = grocery.stock.usage;
-  const plural = every === 1 ? unit : `${unit}s`;
-  return `${number.format(amount)} every ${number.format(every)} ${plural}`;
-};
-
-export const GroceryRow = ({ estimate, stores, onEdit }: Props) => {
+export const GroceryRow = ({
+  estimate,
+  stores,
+  onRestock,
+  onOtherRestock,
+  onCount,
+  onEdit,
+}: Props) => {
   const { grocery, today, tomorrow } = estimate;
-  const { remaining, daysLeft } = today;
-  const todayWidth = positionOnHorizon(daysLeft);
-  const tomorrowWidth = positionOnHorizon(tomorrow.daysLeft);
+  const { amount, daysLeft } = today;
 
   return (
     <li class={urgency(daysLeft)}>
       <div class="item-description">
         <h2>{grocery.name}</h2>
-        <p>{number.format(remaining)} left · use {usageText(grocery)}</p>
+        <p>About {number.format(amount)} left</p>
         <div class="depletion" role="img"
           aria-label={`${duration(daysLeft)} today; ${duration(tomorrow.daysLeft)} tomorrow; seven-day scale`}>
-          <span class="today" style={{ width: `${todayWidth}%` }} />
-          <span class="tomorrow" style={{ width: `${tomorrowWidth}%` }} />
+          <span class="today" style={{ width: `${positionOnHorizon(daysLeft)}%` }} />
+          <span class="tomorrow" style={{ width: `${positionOnHorizon(tomorrow.daysLeft)}%` }} />
         </div>
         <div class="depletion-caption">
           <p class="depletion-key"><span>Today</span><span>Tomorrow</span></p>
@@ -58,9 +59,14 @@ export const GroceryRow = ({ estimate, stores, onEdit }: Props) => {
       </div>
       <div class="item-action">
         <span class="time-left">{duration(daysLeft)}</span>
-        <button class="secondary" type="button" onClick={() => onEdit(grocery)}>
-          Update
+        <button class="primary purchase" type="button" onClick={() => onRestock(grocery)}>
+          Bought +{number.format(grocery.usualRestock)}
         </button>
+        <div class="item-links">
+          <button type="button" onClick={() => onOtherRestock(grocery)}>Other amount</button>
+          <button type="button" onClick={() => onCount(grocery)}>I have…</button>
+          <button type="button" onClick={() => onEdit(grocery)}>Edit</button>
+        </div>
       </div>
     </li>
   );

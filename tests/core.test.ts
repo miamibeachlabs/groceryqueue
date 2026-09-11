@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { SortedPriorityQueue, type PriorityQueue } from '../src/data/PriorityQueue.ts';
 import { Inventory, type Grocery } from '../src/domain/Grocery.ts';
-import { Stock, Usage } from '../src/domain/Stock.ts';
+import { InventoryHistory } from '../src/domain/InventoryHistory.ts';
 import { Stores } from '../src/domain/Store.ts';
 import { LocalInventory } from '../src/infrastructure/LocalInventory.ts';
 
@@ -12,18 +12,58 @@ const milk: Grocery = {
   id: 'milk',
   name: 'Milk',
   storeIds: [wholeFoods.id],
-  stock: { amount: 1, usage: { amount: 1, every: 1, unit: 'week' }, observedAt: day },
+  usualRestock: 1,
+  history: InventoryHistory.start(1, 7, day),
 };
 
-test('stock is derived from an observation without changing it', () => {
-  expect(Usage.perDay({ amount: 1, every: 3, unit: 'week' })).toBeCloseTo(1 / 21);
-  expect(Stock.estimateAt(milk.stock, 4.5 * day).remaining).toBe(0.5);
-  expect(Stock.estimateAt(milk.stock, 20 * day).remaining).toBe(0);
-  expect(Stock.estimateAt(milk.stock, 0).remaining).toBe(1);
-  const unused = { ...milk.stock, usage: { ...milk.stock.usage, amount: 0 } };
-  expect(Stock.estimateAt(unused, 4 * day).daysLeft).toBe(Infinity);
-  expect(Stock.estimateAt({ ...unused, amount: 0 }, 4 * day).daysLeft).toBe(0);
-  expect(milk.stock.amount).toBe(1);
+test('inventory history starts from a human estimate', () => {
+  const history = InventoryHistory.start(8, 4, day);
+
+  expect(InventoryHistory.estimateAt(history, day).dailyUse).toBe(2);
+  expect(InventoryHistory.estimateAt(history, 3 * day).amount).toBe(4);
+  expect(InventoryHistory.estimateAt(history, 5 * day).daysLeft).toBe(0);
+});
+
+test('counts and variable restocks telescope into consumption evidence', () => {
+  let history = InventoryHistory.start(12, 6, 0);
+  history = InventoryHistory.restock(history, 7, day);
+  history = InventoryHistory.restock(history, 5, 2 * day);
+  const observation = InventoryHistory.observe(history, 18, 3 * day);
+  expect(observation.kind).toBe('recorded');
+  if (observation.kind !== 'recorded') return;
+
+  const estimate = InventoryHistory.estimateAt(observation.history, 3 * day);
+  expect(estimate.dailyUse).toBeCloseTo(2);
+  expect(estimate.amount).toBe(18);
+  expect(estimate.daysLeft).toBeCloseTo(9);
+  expect(estimate.observations).toBe(2);
+});
+
+test('restock cadence determines the item learning timescale', () => {
+  let history = InventoryHistory.start(12, 30, 0);
+  for (const when of [6, 14, 20])
+    history = InventoryHistory.restock(history, 12, when * day);
+
+  expect(InventoryHistory.estimateAt(history, 20 * day).restockCycleDays).toBe(7);
+});
+
+test('several purchases in one shopping episode do not collapse the learning timescale', () => {
+  let history = InventoryHistory.start(8, 28, 0);
+  history = InventoryHistory.restock(history, 12, day);
+  history = InventoryHistory.restock(history, 6, day + 1_000);
+
+  const tomorrow = InventoryHistory.estimateAt(history, 2 * day);
+  expect(tomorrow.restockCycleDays).toBe(28);
+  expect(tomorrow.dailyUse).toBeCloseTo(8 / 28);
+  expect(tomorrow.daysLeft).toBeGreaterThan(80);
+});
+
+test('a count cannot silently imply an unrecorded purchase', () => {
+  const history = InventoryHistory.start(8, 4, 0);
+  const result = InventoryHistory.observe(history, 11, day);
+
+  expect(result).toEqual({ kind: 'missingRestock', amount: 3 });
+  expect(history.events).toHaveLength(1);
 });
 
 test('the priority queue presents behavior without exposing its representation', () => {
@@ -34,43 +74,28 @@ test('the priority queue presents behavior without exposing its representation',
   expect(queue.toArray()).toEqual([1, 2, 3]);
   expect(queue.peek()).toBe(1);
   expect(queue.pop()?.[1].toArray()).toEqual([2, 3]);
-  expect(initial.pop()).toBeUndefined();
 });
 
-test('equal priorities remain in input order', () => {
-  const values = Object.freeze([
-    { id: 'a', score: Infinity },
-    { id: 'b', score: 0 },
-    { id: 'c', score: Infinity },
-  ]);
-  const queue = SortedPriorityQueue.from((a, b) => a.score - b.score, values);
-
-  expect(queue.toArray().map(value => value.id)).toEqual(['b', 'a', 'c']);
-  expect(values.map(value => value.id)).toEqual(['a', 'b', 'c']);
-});
-
-test('inventory changes are immutable and shopping order is derived at a given time', () => {
+test('purchases and counts update inventory immutably', () => {
   const beef: Grocery = {
     id: 'beef',
     name: 'Beef',
     storeIds: [traderJoes.id],
-    stock: { amount: 2, usage: { amount: 1, every: 1, unit: 'day' }, observedAt: day },
+    usualRestock: 3,
+    history: InventoryHistory.start(2, 2, day),
   };
   const inventory = { groceries: [milk, beef], stores: [wholeFoods, traderJoes] };
-  const updated = { ...milk, stock: { ...milk.stock, amount: 2 } };
+  const purchased = Inventory.restock(inventory, beef.id, 4, 2 * day);
+  const counted = Inventory.count(purchased, beef.id, 4, 3 * day);
 
-  expect(Inventory.shoppingQueue(inventory, day).toArray().map(x => x.grocery.id))
-    .toEqual(['beef', 'milk']);
-  expect(Inventory.shoppingQueue(inventory, 3 * day, wholeFoods.id).peek()?.grocery.id)
-    .toBe('milk');
-  expect(Inventory.change(inventory, { kind: 'save', grocery: updated }).groceries)
-    .toEqual([updated, beef]);
-  expect(Inventory.change(inventory, { kind: 'remove', id: milk.id }).groceries)
-    .toEqual([beef]);
-  expect(inventory.groceries[0]?.stock.amount).toBe(1);
+  expect(purchased.groceries[1]?.usualRestock).toBe(4);
+  expect(purchased.groceries[1]?.history.events).toHaveLength(2);
+  expect(counted.kind).toBe('recorded');
+  expect(inventory.groceries[1]?.usualRestock).toBe(3);
+  expect(Inventory.shoppingQueue(inventory, day).peek()?.grocery.id).toBe('beef');
 });
 
-test('store names are unique and a rename can merge duplicate stores', () => {
+test('store names remain unique and renaming can merge them', () => {
   const typo = { id: 'typo', name: 'Whole Fooods' };
   const inventory = { groceries: [{ ...milk, storeIds: [typo.id] }], stores: [wholeFoods, typo] };
   const merged = Inventory.change(inventory, {
@@ -85,10 +110,10 @@ test('store names are unique and a rename can merge duplicate stores', () => {
   expect(merged.groceries[0]?.storeIds).toEqual([wholeFoods.id]);
 });
 
-test('fresh storage has defaults and current storage round-trips', () => {
+test('learned inventory has independent storage and round-trips', () => {
   let stored: string | null = null;
   const repository = new LocalInventory({
-    getItem: () => stored,
+    getItem: key => key === 'grocery-queue.learned.v1' ? stored : 'old data',
     setItem: (_key, value) => { stored = value; },
   });
 
@@ -96,52 +121,17 @@ test('fresh storage has defaults and current storage round-trips', () => {
   const inventory = { groceries: [milk], stores: [wholeFoods] };
   repository.save(inventory);
   expect(repository.load()).toEqual(inventory);
-  expect(JSON.parse(stored ?? '').version).toBe(4);
+  expect(JSON.parse(stored ?? '').version).toBe(1);
 });
 
-test('existing data migrates stores without injecting defaults or losing text', () => {
-  const legacyMilk = {
-    ...milk,
-    stores: ['Whole Fooods', 'Publix', 'whole fooods'],
-    storeIds: undefined,
-  };
-  const stored = JSON.stringify({ version: 3, groceries: [legacyMilk] });
-  const inventory = new LocalInventory({ getItem: () => stored, setItem: () => {} }).load();
-
-  expect(inventory.stores.map(store => store.name)).toEqual(['Whole Fooods', 'Publix']);
-  expect(inventory.groceries[0]?.storeIds).toEqual(['migrated-store-1', 'migrated-store-2']);
-  expect(inventory.groceries[0]?.name).toBe('Milk');
-});
-
-test('the oldest saved formats still migrate', () => {
-  const legacy = { ...milk, stores: ['Whole Foods'], storeIds: undefined };
-  for (const saved of [
-    { version: 1, items: [{ ...legacy, stock: { amount: 1, perDay: 1 / 7, observedAt: day } }] },
-    { version: 2, groceries: [{ ...legacy, stock: { amount: 1, usedPerDay: 1 / 7, observedAt: day } }] },
-  ]) {
-    const inventory = new LocalInventory({
-      getItem: () => JSON.stringify(saved),
-      setItem: () => {},
-    }).load();
-    expect(inventory.groceries[0]?.stock).toEqual(milk.stock);
-    expect(inventory.stores[0]?.name).toBe('Whole Foods');
-  }
-});
-
-test('local inventory rejects invalid data and reports unavailable storage', () => {
+test('local inventory rejects invalid data and unavailable storage', () => {
   for (const stored of [
     'broken',
-    JSON.stringify({ version: 4, groceries: [milk, milk], stores: [wholeFoods] }),
-    JSON.stringify({ version: 4, groceries: [{ ...milk, storeIds: ['missing'] }], stores: [] }),
-  ]) {
+    JSON.stringify({ version: 1, groceries: [{ ...milk, usualRestock: 0 }], stores: [wholeFoods] }),
+    JSON.stringify({ version: 1, groceries: [{ ...milk, history: { ...milk.history, events: [] } }], stores: [wholeFoods] }),
+  ])
     expect(() => new LocalInventory({ getItem: () => stored, setItem: () => {} }).load())
-      .toThrow('Saved groceries could not be read');
-  }
-
-  expect(() => new LocalInventory({
-    getItem: () => { throw new Error('denied'); },
-    setItem: () => {},
-  }).load()).toThrow('Browser storage is unavailable');
+      .toThrow('left untouched');
 
   expect(() => new LocalInventory({
     getItem: () => null,

@@ -40,9 +40,13 @@ export const useInventory = () => {
     };
   }, []);
 
-  const commit = (change: InventoryChange): string | undefined => {
+  const transact = (
+    transform: (inventory: GroceryInventory) => GroceryInventory | string,
+  ): string | undefined => {
     try {
-      const inventory = Inventory.change(repository.load(), change);
+      const result = transform(repository.load());
+      if (typeof result === 'string') return result;
+      const inventory = result;
       repository.save(inventory);
       setState({ inventory });
       return undefined;
@@ -53,6 +57,17 @@ export const useInventory = () => {
     }
   };
 
+  const commit = (change: InventoryChange): string | undefined =>
+    transact(inventory => Inventory.change(inventory, change));
+
+  const count = (id: string, amount: number): string | undefined =>
+    transact(inventory => {
+      const result = Inventory.count(inventory, id, amount, Date.now());
+      return result.kind === 'recorded'
+        ? result.inventory
+        : `That count suggests about ${result.amount.toFixed(2)} was added. Record what you bought first.`;
+    });
+
   return {
     ...state,
     save: (grocery: Grocery) => commit({ kind: 'save', grocery }),
@@ -60,5 +75,8 @@ export const useInventory = () => {
     addStore: (store: Store) => commit({ kind: 'addStore', store }),
     renameStore: (id: string, name: string) =>
       commit({ kind: 'renameStore', id, name }),
+    restock: (id: string, amount: number) =>
+      transact(inventory => Inventory.restock(inventory, id, amount, Date.now())),
+    count,
   } as const;
 };
