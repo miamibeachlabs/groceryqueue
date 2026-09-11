@@ -31,7 +31,7 @@ The browser treats each device and browser separately, so groceries do not sync 
 ## Read the code
 
 1. `src/data/PriorityQueue.ts` — the abstract queue interface and one private-representation implementation.
-2. `src/domain/InventoryHistory.ts` — inventory facts and the pure estimator derived from them.
+2. `src/domain/InventoryTracker.ts` — constant-space inventory evidence and its pure estimator.
 3. `src/domain/Store.ts` — store identity, naming, and catalog rules.
 4. `src/domain/Grocery.ts` — the grocery model, inventory changes, and grocery-specific priority policy.
 5. `src/infrastructure/LocalInventory.ts` — validation, legacy-data migration, and browser-storage effects.
@@ -43,7 +43,7 @@ The reusable queue has no UI, runtime, browser, or grocery dependencies. `Priori
 
 ## Model
 
-The authoritative facts are timestamped counts and purchases. “I have 8” observes the amount present; “Bought 12” records an addition. Between two counts, consumption is the earlier amount plus every purchase minus the later amount. Intermediate events therefore combine without averaging noisy interval rates.
+Counts and purchases are folded into a constant-space tracker. It retains the latest exact count, purchases since that count, weighted consumption evidence, and at most five recent purchase intervals. “I have 8” anchors the current amount; “Bought 12” records an addition. Between counts, consumption is the earlier amount plus purchases minus the later amount.
 
 A new item begins with a rough prediction of when its current amount will run out. That prediction acts as weak initial evidence. Actual counts gradually replace it with a weighted amount-over-time estimate. Recent evidence matters more, and each item's learning timescale follows its recent restock cadence: frequently purchased food adapts quickly while rarely purchased staples retain useful evidence longer.
 
@@ -55,7 +55,7 @@ Each item includes a depletion bar on the same fixed seven-day scale. The lighte
 
 The queue sorts by predicted days remaining. Empty items come first; positive amounts with zero estimated consumption come last. Equal priorities retain inventory order. This predicts depletion, not food spoilage, expiration, or store trips.
 
-Use **Bought** after adding groceries and **I have…** after counting what remains. Names, stores, and the suggested purchase amount are editable without changing inventory history. If a count would imply that unrecorded groceries appeared, the app asks for the missing purchase instead of learning from impossible evidence.
+Use **Bought** after adding groceries and **Update count** after counting what remains. Names, stores, and the suggested purchase amount are editable without changing learned inventory. If a count would imply that unrecorded groceries appeared, the app asks for the missing purchase instead of learning from impossible evidence.
 
 ## Persistence and limits
 

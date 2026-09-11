@@ -1,5 +1,6 @@
 import { Inventory, type Grocery, type Inventory as GroceryInventory } from '../domain/Grocery.ts';
 import type { InventoryEvent, InventoryHistory } from '../domain/InventoryHistory.ts';
+import { InventoryTracker, type InventoryTracker as Tracker } from '../domain/InventoryTracker.ts';
 import { Stores, type Store } from '../domain/Store.ts';
 
 const key = 'grocery-queue.learned.v1';
@@ -15,6 +16,8 @@ const isNonnegative = (value: unknown): value is number =>
   typeof value === 'number' && Number.isFinite(value) && value >= 0;
 const isPositive = (value: unknown): value is number =>
   typeof value === 'number' && Number.isFinite(value) && value > 0;
+
+const isTime = isNonnegative;
 
 const isEvent = (value: unknown): value is InventoryEvent =>
   isRecord(value)
@@ -32,6 +35,25 @@ const isHistory = (value: unknown): value is InventoryHistory => {
     index === 0 || event.at >= events[index - 1].at);
 };
 
+const isTracker = (value: unknown): value is Tracker => {
+  if (!isRecord(value) || !isRecord(value.anchor)
+    || !isNonnegative(value.anchor.amount) || !isTime(value.anchor.at)
+    || !isNonnegative(value.anchor.boughtSince)
+    || !isRecord(value.usage) || !isNonnegative(value.usage.amount)
+    || !isPositive(value.usage.days) || !isTime(value.usage.at)
+    || !isRecord(value.cadence) || !isPositive(value.cadence.priorDays)
+    || !Array.isArray(value.cadence.intervals)
+    || value.cadence.intervals.length > 5
+    || !value.cadence.intervals.every(isPositive)
+    || typeof value.observations !== 'number'
+    || !Number.isInteger(value.observations) || value.observations < 1
+    || !isTime(value.updatedAt)) return false;
+
+  return (value.cadence.lastAt === undefined || isTime(value.cadence.lastAt))
+    && value.anchor.at <= value.updatedAt
+    && value.usage.at <= value.updatedAt;
+};
+
 const isStore = (value: unknown): value is Store =>
   isRecord(value) && isText(value.id) && isText(value.name);
 
@@ -42,26 +64,66 @@ const isGrocery = (value: unknown): value is Grocery =>
   && Array.isArray(value.storeIds)
   && value.storeIds.every(isText)
   && isPositive(value.usualRestock)
+  && isTracker(value.tracker);
+
+type LegacyGrocery = Omit<Grocery, 'tracker'> & Readonly<{ history: InventoryHistory }>;
+
+const isLegacyGrocery = (value: unknown): value is LegacyGrocery =>
+  isRecord(value)
+  && isText(value.id)
+  && isText(value.name)
+  && Array.isArray(value.storeIds)
+  && value.storeIds.every(isText)
+  && isPositive(value.usualRestock)
   && isHistory(value.history);
+
+const trackerFrom = (history: InventoryHistory): Tracker => {
+  const [first, ...events] = history.events;
+  if (!first || first.kind !== 'observed') throw new Error(invalidData);
+  let tracker = InventoryTracker.start(first.amount, history.prior.overDays, first.at);
+
+  for (const event of events) {
+    if (event.kind === 'restocked') {
+      tracker = InventoryTracker.restock(tracker, event.amount, event.at);
+      continue;
+    }
+    const result = InventoryTracker.observe(tracker, event.amount, event.at);
+    if (result.kind !== 'recorded') throw new Error(invalidData);
+    tracker = result.tracker;
+  }
+  return tracker;
+};
+
+const currentGrocery = ({ history, ...grocery }: LegacyGrocery): Grocery => ({
+  ...grocery,
+  tracker: trackerFrom(history),
+});
 
 const unique = (values: readonly string[]): boolean =>
   new Set(values).size === values.length;
 
 const inventoryFrom = (value: Record<string, unknown>): GroceryInventory | undefined => {
-  const { groceries, stores } = value;
-  if (value.version !== 1
-    || !Array.isArray(groceries) || !groceries.every(isGrocery)
+  const { stores } = value;
+  if (!Array.isArray(stores) || !stores.every(isStore)) return undefined;
+  const groceries = value.groceries;
+  if (!Array.isArray(groceries)) return undefined;
+  const current = value.version === 2 && groceries.every(isGrocery)
+    ? groceries
+    : value.version === 1 && groceries.every(isLegacyGrocery)
+      ? groceries.map(currentGrocery)
+      : undefined;
+  if (!current
     || !Array.isArray(stores) || !stores.every(isStore)) return undefined;
 
   const storeIds = stores.map(store => store.id);
-  const validReferences = groceries.every(grocery =>
+  const validReferences = current.every(grocery =>
     unique(grocery.storeIds) && grocery.storeIds.every(id => storeIds.includes(id)));
 
-  return unique(groceries.map(grocery => grocery.id))
+  return unique(current.map(grocery => grocery.id))
     && unique(storeIds)
     && unique(stores.map(store => Stores.normalize(store.name)))
     && validReferences
-    ? { groceries, stores }
+    ? { groceries: current, stores }
     : undefined;
 };
 
@@ -95,7 +157,7 @@ export class LocalInventory {
 
   save(inventory: GroceryInventory): void {
     try {
-      this.storage.setItem(key, JSON.stringify({ version: 1, ...inventory }));
+      this.storage.setItem(key, JSON.stringify({ version: 2, ...inventory }));
     } catch {
       throw new Error('Could not save. Your changes have not been applied.');
     }

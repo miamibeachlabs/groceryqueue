@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { SortedPriorityQueue, type PriorityQueue } from '../src/data/PriorityQueue.ts';
 import { Inventory, type Grocery } from '../src/domain/Grocery.ts';
-import { InventoryHistory } from '../src/domain/InventoryHistory.ts';
+import { InventoryTracker } from '../src/domain/InventoryTracker.ts';
 import { Stores } from '../src/domain/Store.ts';
 import { LocalInventory } from '../src/infrastructure/LocalInventory.ts';
 
@@ -13,26 +13,26 @@ const milk: Grocery = {
   name: 'Milk',
   storeIds: [wholeFoods.id],
   usualRestock: 1,
-  history: InventoryHistory.start(1, 7, day),
+  tracker: InventoryTracker.start(1, 7, day),
 };
 
-test('inventory history starts from a human estimate', () => {
-  const history = InventoryHistory.start(8, 4, day);
+test('inventory tracking starts from a human estimate', () => {
+  const tracker = InventoryTracker.start(8, 4, day);
 
-  expect(InventoryHistory.estimateAt(history, day).dailyUse).toBe(2);
-  expect(InventoryHistory.estimateAt(history, 3 * day).amount).toBe(4);
-  expect(InventoryHistory.estimateAt(history, 5 * day).daysLeft).toBe(0);
+  expect(InventoryTracker.estimateAt(tracker, day).dailyUse).toBe(2);
+  expect(InventoryTracker.estimateAt(tracker, 3 * day).amount).toBe(4);
+  expect(InventoryTracker.estimateAt(tracker, 5 * day).daysLeft).toBe(0);
 });
 
 test('counts and variable restocks telescope into consumption evidence', () => {
-  let history = InventoryHistory.start(12, 6, 0);
-  history = InventoryHistory.restock(history, 7, day);
-  history = InventoryHistory.restock(history, 5, 2 * day);
-  const observation = InventoryHistory.observe(history, 18, 3 * day);
+  let tracker = InventoryTracker.start(12, 6, 0);
+  tracker = InventoryTracker.restock(tracker, 7, day);
+  tracker = InventoryTracker.restock(tracker, 5, 2 * day);
+  const observation = InventoryTracker.observe(tracker, 18, 3 * day);
   expect(observation.kind).toBe('recorded');
   if (observation.kind !== 'recorded') return;
 
-  const estimate = InventoryHistory.estimateAt(observation.history, 3 * day);
+  const estimate = InventoryTracker.estimateAt(observation.tracker, 3 * day);
   expect(estimate.dailyUse).toBeCloseTo(2);
   expect(estimate.amount).toBe(18);
   expect(estimate.daysLeft).toBeCloseTo(9);
@@ -40,30 +40,30 @@ test('counts and variable restocks telescope into consumption evidence', () => {
 });
 
 test('restock cadence determines the item learning timescale', () => {
-  let history = InventoryHistory.start(12, 30, 0);
+  let tracker = InventoryTracker.start(12, 30, 0);
   for (const when of [6, 14, 20])
-    history = InventoryHistory.restock(history, 12, when * day);
+    tracker = InventoryTracker.restock(tracker, 12, when * day);
 
-  expect(InventoryHistory.estimateAt(history, 20 * day).restockCycleDays).toBe(7);
+  expect(InventoryTracker.estimateAt(tracker, 20 * day).restockCycleDays).toBe(7);
 });
 
 test('several purchases in one shopping episode do not collapse the learning timescale', () => {
-  let history = InventoryHistory.start(8, 28, 0);
-  history = InventoryHistory.restock(history, 12, day);
-  history = InventoryHistory.restock(history, 6, day + 1_000);
+  let tracker = InventoryTracker.start(8, 28, 0);
+  tracker = InventoryTracker.restock(tracker, 12, day);
+  tracker = InventoryTracker.restock(tracker, 6, day + 1_000);
 
-  const tomorrow = InventoryHistory.estimateAt(history, 2 * day);
+  const tomorrow = InventoryTracker.estimateAt(tracker, 2 * day);
   expect(tomorrow.restockCycleDays).toBe(28);
   expect(tomorrow.dailyUse).toBeCloseTo(8 / 28);
   expect(tomorrow.daysLeft).toBeGreaterThan(80);
 });
 
 test('a count cannot silently imply an unrecorded purchase', () => {
-  const history = InventoryHistory.start(8, 4, 0);
-  const result = InventoryHistory.observe(history, 11, day);
+  const tracker = InventoryTracker.start(8, 4, 0);
+  const result = InventoryTracker.observe(tracker, 11, day);
 
   expect(result).toEqual({ kind: 'missingRestock', amount: 3 });
-  expect(history.events).toHaveLength(1);
+  expect(tracker.anchor).toEqual({ amount: 8, at: 0, boughtSince: 0 });
 });
 
 test('the priority queue presents behavior without exposing its representation', () => {
@@ -82,14 +82,14 @@ test('purchases and counts update inventory immutably', () => {
     name: 'Beef',
     storeIds: [traderJoes.id],
     usualRestock: 3,
-    history: InventoryHistory.start(2, 2, day),
+    tracker: InventoryTracker.start(2, 2, day),
   };
   const inventory = { groceries: [milk, beef], stores: [wholeFoods, traderJoes] };
   const purchased = Inventory.restock(inventory, beef.id, 4, 2 * day);
   const counted = Inventory.count(purchased, beef.id, 4, 3 * day);
 
   expect(purchased.groceries[1]?.usualRestock).toBe(4);
-  expect(purchased.groceries[1]?.history.events).toHaveLength(2);
+  expect(purchased.groceries[1]?.tracker.anchor.boughtSince).toBe(4);
   expect(counted.kind).toBe('recorded');
   expect(inventory.groceries[1]?.usualRestock).toBe(3);
   expect(Inventory.shoppingQueue(inventory, day).peek()?.grocery.id).toBe('beef');
@@ -121,14 +121,42 @@ test('learned inventory has independent storage and round-trips', () => {
   const inventory = { groceries: [milk], stores: [wholeFoods] };
   repository.save(inventory);
   expect(repository.load()).toEqual(inventory);
-  expect(JSON.parse(stored ?? '').version).toBe(1);
+  expect(JSON.parse(stored ?? '').version).toBe(2);
+});
+
+test('event histories migrate once into constant-space trackers', () => {
+  const legacy = JSON.stringify({
+    version: 1,
+    stores: [wholeFoods],
+    groceries: [{
+      id: 'milk',
+      name: 'Milk',
+      storeIds: [wholeFoods.id],
+      usualRestock: 1,
+      history: {
+        prior: { amount: 1, overDays: 7 },
+        events: [
+          { kind: 'observed', amount: 1, at: 0 },
+          { kind: 'restocked', amount: 1, at: 6 * day },
+          { kind: 'observed', amount: 1, at: 7 * day },
+        ],
+      },
+    }],
+  });
+
+  const inventory = new LocalInventory({ getItem: () => legacy, setItem: () => {} }).load();
+  const tracker = inventory.groceries[0]?.tracker;
+
+  expect(tracker?.anchor).toEqual({ amount: 1, at: 7 * day, boughtSince: 0 });
+  expect(tracker?.observations).toBe(2);
+  expect('history' in (inventory.groceries[0] ?? {})).toBe(false);
 });
 
 test('local inventory rejects invalid data and unavailable storage', () => {
   for (const stored of [
     'broken',
-    JSON.stringify({ version: 1, groceries: [{ ...milk, usualRestock: 0 }], stores: [wholeFoods] }),
-    JSON.stringify({ version: 1, groceries: [{ ...milk, history: { ...milk.history, events: [] } }], stores: [wholeFoods] }),
+    JSON.stringify({ version: 2, groceries: [{ ...milk, usualRestock: 0 }], stores: [wholeFoods] }),
+    JSON.stringify({ version: 2, groceries: [{ ...milk, tracker: { ...milk.tracker, observations: 0 } }], stores: [wholeFoods] }),
   ])
     expect(() => new LocalInventory({ getItem: () => stored, setItem: () => {} }).load())
       .toThrow('left untouched');

@@ -4,10 +4,10 @@ import {
   type PriorityQueue,
 } from '../data/PriorityQueue.ts';
 import {
-  InventoryHistory,
+  InventoryTracker,
   type InventoryEstimate,
-  type InventoryHistory as History,
-} from './InventoryHistory.ts';
+  type InventoryTracker as Tracker,
+} from './InventoryTracker.ts';
 import { Stores, type Store, type StoreCatalog } from './Store.ts';
 
 export type Grocery = Readonly<{
@@ -15,7 +15,7 @@ export type Grocery = Readonly<{
   name: string;
   storeIds: readonly string[];
   usualRestock: number;
-  history: History;
+  tracker: Tracker;
 }>;
 
 export type GroceryEstimate = Readonly<{
@@ -45,8 +45,8 @@ const empty = (): Inventory => ({ groceries: [], stores: Stores.defaults });
 
 const estimateAt = (now: number, grocery: Grocery): GroceryEstimate => ({
   grocery,
-  today: InventoryHistory.estimateAt(grocery.history, now),
-  tomorrow: InventoryHistory.estimateAt(grocery.history, now + day),
+  today: InventoryTracker.estimateAt(grocery.tracker, now),
+  tomorrow: InventoryTracker.estimateAt(grocery.tracker, now + day),
 });
 
 const byUrgency: Comparator<GroceryEstimate> = (left, right) =>
@@ -72,7 +72,7 @@ const restock = (
 ): Inventory => update(inventory, id, grocery => ({
   ...grocery,
   usualRestock: amount,
-  history: InventoryHistory.restock(grocery.history, amount, at),
+  tracker: InventoryTracker.restock(grocery.tracker, amount, at),
 }));
 
 const count = (
@@ -83,7 +83,7 @@ const count = (
 ): StockCountResult => {
   const grocery = inventory.groceries.find(candidate => candidate.id === id);
   if (!grocery) return { kind: 'recorded', inventory };
-  const result = InventoryHistory.observe(grocery.history, amount, at);
+  const result = InventoryTracker.observe(grocery.tracker, amount, at);
 
   return result.kind === 'missingRestock'
     ? result
@@ -91,7 +91,7 @@ const count = (
         kind: 'recorded',
         inventory: update(inventory, id, item => ({
           ...item,
-          history: result.history,
+          tracker: result.tracker,
         })),
       };
 };

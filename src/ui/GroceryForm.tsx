@@ -1,6 +1,6 @@
 import { useState } from 'preact/hooks';
 import type { Grocery } from '../domain/Grocery.ts';
-import { InventoryHistory } from '../domain/InventoryHistory.ts';
+import { InventoryTracker } from '../domain/InventoryTracker.ts';
 import type { Store, StoreCatalog } from '../domain/Store.ts';
 import { StorePicker } from './StorePicker.tsx';
 
@@ -67,7 +67,7 @@ export const GroceryForm = ({
       name,
       storeIds,
       usualRestock,
-      history: InventoryHistory.start(
+      tracker: InventoryTracker.start(
         amount,
         interval * (unit === 'week' ? 7 : 1),
         Date.now(),
@@ -124,7 +124,7 @@ export const GroceryForm = ({
         </div>
         {confirmingRemoval && grocery &&
           <fieldset class="remove-confirm">
-            <legend>Remove {grocery.name} and its history?</legend>
+            <legend>Remove {grocery.name} and its learned inventory?</legend>
             <button class="danger" type="button" onClick={remove}>Yes, remove</button>
             <button type="button" onClick={() => setConfirmingRemoval(false)}>Keep item</button>
           </fieldset>}
