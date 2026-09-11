@@ -42,7 +42,7 @@ export const GroceryRow = ({
         <h2>{grocery.name}</h2>
         <div class="amount-line">
           <p>About {number.format(amount)} left</p>
-          <button class="secondary compact" type="button" onClick={() => onCount(grocery)}>
+          <button class="primary compact" type="button" onClick={() => onCount(grocery)}>
             Update count
           </button>
         </div>
@@ -68,11 +68,11 @@ export const GroceryRow = ({
           <button class="primary" type="button" onClick={() => onRestock(grocery)}>
             Bought +{number.format(grocery.usualRestock)}
           </button>
-          <button class="secondary" type="button" onClick={() => onOtherRestock(grocery)}>
+          <button class="primary" type="button" onClick={() => onOtherRestock(grocery)}>
             Different amount
           </button>
         </div>
-        <button class="edit-details" type="button" onClick={() => onEdit(grocery)}>Edit details</button>
+        <button class="primary edit-details" type="button" onClick={() => onEdit(grocery)}>Edit details</button>
       </div>
     </li>
   );
