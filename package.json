@@ -6,6 +6,7 @@
     "dev": "bun index.html",
     "build": "bun run scripts/build.ts",
     "check": "bunx --bun typescript@5.9.3 --noEmit",
+    "simulate:month": "SHOW_SIMULATION=1 bun test tests/month-simulation.test.ts",
     "test": "bun test"
   },
   "dependencies": {
