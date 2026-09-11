@@ -69,10 +69,10 @@ export const GroceryRow = ({
             Bought +{number.format(grocery.usualRestock)}
           </button>
           <button class="primary" type="button" onClick={() => onOtherRestock(grocery)}>
-            Different amount
+            Bought other amount
           </button>
         </div>
-        <button class="primary edit-details" type="button" onClick={() => onEdit(grocery)}>Edit details</button>
+        <button class="edit-details" type="button" onClick={() => onEdit(grocery)}>Edit details</button>
       </div>
     </li>
   );
