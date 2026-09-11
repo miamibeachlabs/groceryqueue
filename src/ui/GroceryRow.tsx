@@ -40,7 +40,12 @@ export const GroceryRow = ({
     <li class={urgency(daysLeft)}>
       <div class="item-description">
         <h2>{grocery.name}</h2>
-        <p>About {number.format(amount)} left</p>
+        <div class="amount-line">
+          <p>About {number.format(amount)} left</p>
+          <button class="secondary compact" type="button" onClick={() => onCount(grocery)}>
+            Update count
+          </button>
+        </div>
         <div class="depletion" role="img"
           aria-label={`${duration(daysLeft)} today; ${duration(tomorrow.daysLeft)} tomorrow; seven-day scale`}>
           <span class="today" style={{ width: `${positionOnHorizon(daysLeft)}%` }} />
@@ -59,14 +64,15 @@ export const GroceryRow = ({
       </div>
       <div class="item-action">
         <span class="time-left">{duration(daysLeft)}</span>
-        <button class="primary purchase" type="button" onClick={() => onRestock(grocery)}>
-          Bought +{number.format(grocery.usualRestock)}
-        </button>
-        <div class="item-links">
-          <button type="button" onClick={() => onOtherRestock(grocery)}>Other amount</button>
-          <button type="button" onClick={() => onCount(grocery)}>I have…</button>
-          <button type="button" onClick={() => onEdit(grocery)}>Edit</button>
+        <div class="purchase-actions">
+          <button class="primary" type="button" onClick={() => onRestock(grocery)}>
+            Bought +{number.format(grocery.usualRestock)}
+          </button>
+          <button class="secondary" type="button" onClick={() => onOtherRestock(grocery)}>
+            Different amount
+          </button>
         </div>
+        <button class="edit-details" type="button" onClick={() => onEdit(grocery)}>Edit details</button>
       </div>
     </li>
   );
