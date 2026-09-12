@@ -80,6 +80,7 @@ h2 { margin: 0; overflow-wrap: anywhere; font-size: 1.2rem; font-weight: 650; le
 .purchase-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
 .purchase-actions button { min-height: 40px; padding: 8px 11px; white-space: nowrap; }
 .edit-details { min-height: 34px; padding: 5px 9px; color: var(--muted); border-color: transparent; }
+.phone-label { display: none; }
 .remove-confirm { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; padding: 16px 0 0; border: 0; border-top: 1px solid var(--line); }
 .remove-confirm legend { width: 100%; margin-bottom: 8px; }
 .error { color: #9f2f18; }
@@ -93,23 +94,26 @@ footer p { margin: 4px 0; }
   .masthead { gap: 12px; }
   .masthead button { min-height: 40px; padding: 8px 12px; }
   .intro { margin: 14px 0 10px; }
-  .store-filters { gap: 6px; margin-bottom: 10px; }
-  .store-filters button { min-height: 38px; padding: 7px 11px; }
+  .store-filters { flex-wrap: nowrap; gap: 6px; margin-bottom: 10px; overflow-x: auto; scrollbar-width: none; }
+  .store-filters::-webkit-scrollbar { display: none; }
+  .store-filters button { flex: 0 0 auto; min-height: 38px; padding: 7px 11px; }
   .list-heading { display: none; }
-  .queue > ol > li { position: relative; align-items: stretch; flex-direction: column; gap: 7px; padding: 9px 9px 10px; }
-  h2 { max-width: calc(100% - 120px); font-size: 1.05rem; }
-  .amount-line { min-height: 32px; gap: 5px 8px; padding-right: 0; }
-  .amount-line p { margin-top: 0; font-size: .8125rem; }
-  .amount-line .compact { min-height: 32px; padding: 4px 8px; font-size: .75rem; }
+  .queue > ol > li { display: grid; grid-template-columns: .75fr 1fr 1fr .55fr; align-items: center; gap: 6px; padding: 9px; }
+  .item-description, .item-action, .amount-line, .purchase-actions { display: contents; }
+  h2 { grid-column: 1 / 3; font-size: 1.05rem; }
+  .amount-line > p:first-child { grid-column: 1 / 3; margin: 0; font-size: .8125rem; }
+  .amount-line .compact { grid-column: 1; grid-row: 4; min-height: 34px; padding: 5px 8px; font-size: .75rem; }
   .item-description .stores { margin-left: auto; font-size: .75rem; }
-  .depletion { height: 8px; margin-top: 5px; }
+  .item-description .stores { grid-column: 3 / 5; grid-row: 2; margin-top: 0; text-align: right; }
+  .depletion { grid-column: 1 / 5; grid-row: 3; width: 100%; height: 8px; margin-top: 1px; }
   .depletion-caption { display: none; }
   .editor { padding: 18px; }
-  .depletion { width: 100%; }
-  .item-action { align-items: center; flex-direction: row; gap: 5px; text-align: left; }
-  .time-left { position: absolute; top: 10px; right: 9px; font-size: .8125rem; }
-  .purchase-actions { flex: 1; flex-wrap: nowrap; justify-content: flex-start; gap: 5px; }
-  .purchase-actions button { min-height: 36px; padding: 6px 8px; font-size: .75rem; }
-  .edit-details { min-height: 32px; padding: 4px 6px; font-size: .75rem; white-space: nowrap; }
+  .time-left { grid-column: 3 / 5; grid-row: 1; font-size: .8125rem; text-align: right; }
+  .purchase-actions button { grid-row: 4; min-height: 34px; padding: 5px 8px; font-size: .75rem; }
+  .purchase-actions button:first-child { grid-column: 2; }
+  .purchase-actions button:last-child { grid-column: 3; }
+  .edit-details { grid-column: 4; grid-row: 4; min-height: 30px; padding: 3px 5px; font-size: .75rem; white-space: nowrap; }
+  .wide-label { display: none; }
+  .phone-label { display: inline; }
 }
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
