@@ -43,7 +43,7 @@ export const GroceryRow = ({
         <div class="amount-line">
           <p>About {number.format(amount)} left</p>
           <button class="primary compact" type="button" onClick={() => onCount(grocery)}>
-            <span class="wide-label">Update count</span><span class="phone-label">Count</span>
+            <span class="wide-label">Update count</span><span class="phone-label">Update</span>
           </button>
           <p class="stores">
             {grocery.storeIds
