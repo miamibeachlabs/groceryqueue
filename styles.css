@@ -87,7 +87,7 @@ h2 { margin: 0; overflow-wrap: anywhere; font-size: 1.2rem; font-weight: 650; le
 .notice { padding: 16px; background: #fff0eb; border: 1px solid #efa894; border-radius: 6px; }
 footer { margin-top: 28px; color: var(--muted); font-size: .875rem; line-height: 1.6; }
 footer p { margin: 4px 0; }
-@media (max-width: 520px) {
+@media (max-width: 700px) {
   .workspace { padding: 16px 10px; }
   .eyebrow { display: none; }
   h1 { font-size: 2rem; }
