@@ -3,6 +3,7 @@ import { Inventory, type Grocery } from '../domain/Grocery.ts';
 import { GroceryForm } from './GroceryForm.tsx';
 import { GroceryRow } from './GroceryRow.tsx';
 import { InventoryActionForm } from './InventoryActionForm.tsx';
+import { MiamiBeachLabsBrand } from './MiamiBeachLabsBrand.tsx';
 import { useInventory } from './useInventory.ts';
 
 type Editor =
@@ -61,7 +62,8 @@ export const App = () => {
       <header class="masthead">
         <div>
           <p class="eyebrow">YOUR PANTRY, IN ORDER</p>
-          <h1>Grocery queue<span>.</span></h1>
+          <h1>Grocery Queue<span>.</span></h1>
+          <MiamiBeachLabsBrand />
         </div>
         <button class="primary add-button" type="button"
           disabled={Boolean(inventory.error)} onClick={() => setEditor('new')}>

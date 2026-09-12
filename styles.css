@@ -15,6 +15,12 @@ button.danger-link { margin-left: auto; color: #a23e2b; border-color: transparen
 .eyebrow { margin: 0 0 10px; color: var(--muted); font-size: .75rem; font-weight: 700; letter-spacing: .12em; }
 h1 { margin: 0; font-size: clamp(2rem, 6vw, 3rem); font-weight: 750; line-height: 1.1; letter-spacing: -.055em; }
 h1 span { color: var(--coral); }
+.byline { display: flex; align-items: center; gap: 7px; margin-top: 9px; color: var(--muted); font-size: .68rem; }
+.mbl-brand { display: flex; align-items: center; gap: 6px; }
+.mbl-brand svg { display: block; width: 28px; height: 28px; }
+.mbl-brand > span { display: flex; flex-direction: column; gap: 1px; white-space: nowrap; }
+.mbl-brand strong { color: var(--ink); font-size: .72rem; font-weight: 750; }
+.mbl-brand small { color: var(--turquoise); font-size: .47rem; font-weight: 650; letter-spacing: .12em; text-transform: uppercase; }
 .intro { display: flex; justify-content: space-between; gap: 16px; margin: 28px 0; color: var(--muted); }
 .intro p { margin: 0; }
 .intro span { font-size: .875rem; }

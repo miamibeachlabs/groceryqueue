@@ -1,4 +1,4 @@
-# Grocery queue
+# Grocery Queue
 
 A small personal grocery list that learns when each item will run out. Its domain is pure TypeScript; its interface uses Preact and TSX.
 

@@ -1,5 +1,5 @@
 {
-  "name": "Grocery queue",
+  "name": "Grocery Queue",
   "short_name": "Groceries",
   "description": "A grocery list ordered by what will run out first.",
   "start_url": "./",
