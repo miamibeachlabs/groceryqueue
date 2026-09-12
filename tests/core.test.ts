@@ -47,6 +47,18 @@ test('restock cadence determines the item learning timescale', () => {
   expect(InventoryTracker.estimateAt(tracker, 20 * day).restockCycleDays).toBe(7);
 });
 
+test('usage evidence has a half-life of one purchase cycle', () => {
+  let tracker = InventoryTracker.start(10, 10, 0);
+  tracker = InventoryTracker.restock(tracker, 10, 10 * day);
+  tracker = InventoryTracker.restock(tracker, 10, 20 * day);
+  const observation = InventoryTracker.observe(tracker, 10, 20 * day);
+  expect(observation.kind).toBe('recorded');
+  if (observation.kind !== 'recorded') return;
+
+  expect(observation.tracker.usage.amount).toBe(22.5);
+  expect(observation.tracker.usage.days).toBe(22.5);
+});
+
 test('several purchases in one shopping episode do not collapse the learning timescale', () => {
   let tracker = InventoryTracker.start(8, 28, 0);
   tracker = InventoryTracker.restock(tracker, 12, day);

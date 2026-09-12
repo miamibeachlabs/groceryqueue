@@ -27,7 +27,7 @@ export type ObservationResult =
   | Readonly<{ kind: 'missingRestock'; amount: number }>;
 
 const millisecondsPerDay = 86_400_000;
-const learningCycles = 4;
+const learningCycles = 1;
 const rememberedIntervals = 5;
 
 const elapsedDays = (from: number, to: number): number =>
