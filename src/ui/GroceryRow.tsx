@@ -45,6 +45,12 @@ export const GroceryRow = ({
           <button class="primary compact" type="button" onClick={() => onCount(grocery)}>
             Update count
           </button>
+          <p class="stores">
+            {grocery.storeIds
+              .map(id => stores.find(store => store.id === id)?.name)
+              .filter(Boolean)
+              .join(' · ') || 'No store specified'}
+          </p>
         </div>
         <div class="depletion" role="img"
           aria-label={`${duration(daysLeft)} today; ${duration(tomorrow.daysLeft)} tomorrow; seven-day scale`}>
@@ -55,12 +61,6 @@ export const GroceryRow = ({
           <p class="depletion-key"><span>Today</span><span>Tomorrow</span></p>
           <p class="depletion-scale"><span>0</span><span>7 days</span></p>
         </div>
-        <p class="stores">
-          {grocery.storeIds
-            .map(id => stores.find(store => store.id === id)?.name)
-            .filter(Boolean)
-            .join(' · ') || 'No store specified'}
-        </p>
       </div>
       <div class="item-action">
         <span class="time-left">{duration(daysLeft)}</span>

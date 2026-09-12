@@ -31,9 +31,9 @@ ol { margin: 0; padding: 0; list-style: none; }
 .item-description { min-width: 0; }
 h2 { margin: 0; overflow-wrap: anywhere; font-size: 1.2rem; font-weight: 650; letter-spacing: -.02em; }
 .item-description p { margin: 6px 0 0; color: var(--muted); font-variant-numeric: tabular-nums; }
-.amount-line { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.amount-line { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; }
 .amount-line .compact { min-height: 34px; padding: 5px 9px; font-size: .8125rem; }
-.item-description .stores { overflow-wrap: anywhere; font-size: .875rem; }
+.item-description .stores { margin-left: auto; overflow-wrap: anywhere; font-size: .875rem; }
 .depletion { position: relative; width: min(340px, 52vw); height: 10px; margin-top: 12px; overflow: hidden; background: #e5ebe5; border-radius: 100px; }
 .depletion::after { position: absolute; inset: 0; background: repeating-linear-gradient(to right, transparent 0, transparent calc(14.285% - 1px), #c2cec7 calc(14.285% - 1px), #c2cec7 14.285%); content: ''; }
 .depletion .today, .depletion .tomorrow { position: absolute; inset: 0 auto 0 0; }
@@ -87,14 +87,29 @@ h2 { margin: 0; overflow-wrap: anywhere; font-size: 1.2rem; font-weight: 650; le
 footer { margin-top: 28px; color: var(--muted); font-size: .875rem; line-height: 1.6; }
 footer p { margin: 4px 0; }
 @media (max-width: 520px) {
-  .workspace { padding: 28px 16px; }
-  .masthead { align-items: flex-start; flex-wrap: wrap; }
-  .queue > ol > li { align-items: stretch; flex-direction: column; padding: 20px 12px; }
-  .list-heading { padding-right: 12px; padding-left: 12px; }
+  .workspace { padding: 16px 10px; }
+  .eyebrow { display: none; }
+  h1 { font-size: 2rem; }
+  .masthead { gap: 12px; }
+  .masthead button { min-height: 40px; padding: 8px 12px; }
+  .intro { margin: 14px 0 10px; }
+  .store-filters { gap: 6px; margin-bottom: 10px; }
+  .store-filters button { min-height: 38px; padding: 7px 11px; }
+  .list-heading { display: none; }
+  .queue > ol > li { position: relative; align-items: stretch; flex-direction: column; gap: 7px; padding: 9px 9px 10px; }
+  h2 { max-width: calc(100% - 120px); font-size: 1.05rem; }
+  .amount-line { min-height: 32px; gap: 5px 8px; padding-right: 0; }
+  .amount-line p { margin-top: 0; font-size: .8125rem; }
+  .amount-line .compact { min-height: 32px; padding: 4px 8px; font-size: .75rem; }
+  .item-description .stores { margin-left: auto; font-size: .75rem; }
+  .depletion { height: 8px; margin-top: 5px; }
+  .depletion-caption { display: none; }
   .editor { padding: 18px; }
-  .depletion, .depletion-caption { width: 100%; }
-  .item-action { align-items: stretch; text-align: left; }
-  .purchase-actions { justify-content: flex-start; }
-  .edit-details { align-self: flex-start; }
+  .depletion { width: 100%; }
+  .item-action { align-items: center; flex-direction: row; gap: 5px; text-align: left; }
+  .time-left { position: absolute; top: 10px; right: 9px; font-size: .8125rem; }
+  .purchase-actions { flex: 1; flex-wrap: nowrap; justify-content: flex-start; gap: 5px; }
+  .purchase-actions button { min-height: 36px; padding: 6px 8px; font-size: .75rem; }
+  .edit-details { min-height: 32px; padding: 4px 6px; font-size: .75rem; white-space: nowrap; }
 }
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
