@@ -10,6 +10,8 @@ type Props = Readonly<{
   onCancel: () => void;
 }>;
 
+const rounded = (value: number): number => Math.round(value * 100) / 100;
+
 export const InventoryActionForm = ({
   action,
   name,
@@ -43,7 +45,7 @@ export const InventoryActionForm = ({
           : rate ? `How much ${name} do you use per day?`
           : `How much ${name} did you buy?`}</span>
         <input name="amount" type="number" inputMode="decimal" min={action === 'restock' ? 0.01 : 0}
-          step="any" defaultValue={counting ? undefined : suggestedAmount} autoFocus required />
+          step="any" defaultValue={rate ? rounded(suggestedAmount) : undefined} autoFocus required />
       </label>
       {rate && <p class="field-help">This takes effect now. Future counts will continue to refine the estimate.</p>}
       {error && <p class="error" role="alert">{error}</p>}

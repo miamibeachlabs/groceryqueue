@@ -46,18 +46,10 @@ const estimateAt = (now: number, grocery: Grocery): GroceryEstimate => ({
   tomorrow: InventoryTracker.estimateAt(grocery.tracker, now + day),
 });
 
-const byUrgency: Comparator<GroceryEstimate> = (left, right) => {
-  const leftRank = left.grocery.manualRank;
-  const rightRank = right.grocery.manualRank;
-  if (leftRank !== undefined || rightRank !== undefined) {
-    if (leftRank === undefined) return 1;
-    if (rightRank === undefined) return -1;
-    if (leftRank !== rightRank) return leftRank - rightRank;
-  }
-  return left.today.daysLeft < right.today.daysLeft ? -1
+const byUrgency: Comparator<GroceryEstimate> = (left, right) =>
+  left.today.daysLeft < right.today.daysLeft ? -1
     : left.today.daysLeft > right.today.daysLeft ? 1
     : 0;
-};
 
 const update = (
   inventory: Inventory,
@@ -102,16 +94,34 @@ const setDailyUse = (
   tracker: InventoryTracker.setDailyUse(grocery.tracker, dailyUse, at),
 }));
 
-const reorder = (inventory: Inventory, ids: readonly string[]): Inventory => {
+const reorder = (
+  inventory: Inventory,
+  ids: readonly string[],
+  movedId: string,
+): Inventory => {
   const ranks = new Map(ids.map((id, index) => [id, index]));
+  const manuallyPlaced = new Set([
+    movedId,
+    ...inventory.groceries
+      .filter(grocery => grocery.manualRank !== undefined)
+      .map(grocery => grocery.id),
+  ]);
   return {
     ...inventory,
     groceries: inventory.groceries.map(grocery => {
       const manualRank = ranks.get(grocery.id);
-      return manualRank === undefined ? grocery : { ...grocery, manualRank };
+      return manualRank === undefined || !manuallyPlaced.has(grocery.id)
+        ? grocery
+        : { ...grocery, manualRank };
     }),
   };
 };
+
+const releaseManualOrder = (inventory: Inventory, id: string): Inventory => update(
+  inventory,
+  id,
+  ({ manualRank: _manualRank, ...grocery }) => grocery,
+);
 
 const usePredictedOrder = (inventory: Inventory): Inventory => ({
   ...inventory,
@@ -167,9 +177,22 @@ const shoppingQueue = (
     ? inventory.groceries.filter(grocery => grocery.storeIds.includes(storeId))
     : inventory.groceries;
 
+  const predicted = visible.map(grocery => estimateAt(now, grocery)).sort(byUrgency);
+  const ordered = [...predicted];
+  const manual = predicted
+    .filter(estimate => estimate.grocery.manualRank !== undefined)
+    .sort((left, right) => left.grocery.manualRank! - right.grocery.manualRank!);
+
+  for (const estimate of manual) {
+    const current = ordered.findIndex(item => item.grocery.id === estimate.grocery.id);
+    if (current >= 0) ordered.splice(current, 1);
+    ordered.splice(Math.min(estimate.grocery.manualRank!, ordered.length), 0, estimate);
+  }
+
+  const positions = new Map(ordered.map((estimate, index) => [estimate.grocery.id, index]));
   return SortedPriorityQueue.from(
-    byUrgency,
-    visible.map(grocery => estimateAt(now, grocery)),
+    (left, right) => positions.get(left.grocery.id)! - positions.get(right.grocery.id)!,
+    ordered,
   );
 };
 
@@ -181,6 +204,7 @@ export const Inventory = {
   count,
   setDailyUse,
   reorder,
+  releaseManualOrder,
   usePredictedOrder,
   shoppingQueue,
 } as const;

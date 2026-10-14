@@ -80,7 +80,10 @@ export const useInventory = () => {
     count,
     setDailyUse: (id: string, dailyUse: number) => transact(inventory =>
       Inventory.setDailyUse(inventory, id, dailyUse, Date.now())),
-    reorder: (ids: readonly string[]) => transact(inventory => Inventory.reorder(inventory, ids)),
+    reorder: (ids: readonly string[], movedId: string) => transact(inventory =>
+      Inventory.reorder(inventory, ids, movedId)),
+    releaseManualOrder: (id: string) => transact(inventory =>
+      Inventory.releaseManualOrder(inventory, id)),
     usePredictedOrder: () => transact(Inventory.usePredictedOrder),
     exportData: () => repository.export(state.inventory),
     prepareImport: (text: string): ImportPlan => repository.prepareImport(text),

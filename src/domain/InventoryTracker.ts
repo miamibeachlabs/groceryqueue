@@ -29,8 +29,10 @@ export type ObservationResult = Readonly<{
 
 const millisecondsPerDay = 86_400_000;
 const learningCycles = 1;
+const manualRateCycles = 2;
 const rememberedIntervals = 5;
 const unknownPriorDays = 7;
+const unknownPriorAmount = 1;
 
 const elapsedDays = (from: number, to: number): number =>
   Math.max(0, to - from) / millisecondsPerDay;
@@ -47,6 +49,11 @@ const median = (values: readonly number[]): number | undefined => {
 const cycleDays = (tracker: InventoryTracker): number =>
   median(tracker.cadence.intervals) ?? tracker.cadence.priorDays;
 
+const agreementWeight = (observed: number, expected: number): number => {
+  if (expected === 0) return observed === 0 ? 1 : 0.25;
+  return 1 / (1 + Math.abs(observed - expected) / expected);
+};
+
 const start = (amount: number, expectedDays: number, at: number): InventoryTracker => {
   if (amount < 0 || expectedDays <= 0 || at < 0)
     throw new RangeError('Starting inventory and time must be valid.');
@@ -59,8 +66,17 @@ const start = (amount: number, expectedDays: number, at: number): InventoryTrack
   };
 };
 
-const startUnknown = (amount: number, at: number): InventoryTracker =>
-  start(amount, unknownPriorDays, at);
+const startUnknown = (amount: number, at: number): InventoryTracker => {
+  if (amount < 0 || at < 0)
+    throw new RangeError('Starting inventory must be valid.');
+  return {
+    anchor: { amount, at, boughtSince: 0 },
+    usage: { amount: unknownPriorAmount, days: unknownPriorDays, at },
+    cadence: { priorDays: unknownPriorDays, intervals: [] },
+    observations: 1,
+    updatedAt: at,
+  };
+};
 
 const restock = (tracker: InventoryTracker, amount: number, at: number): InventoryTracker => {
   if (amount <= 0 || at < tracker.updatedAt)
@@ -87,12 +103,15 @@ const observe = (tracker: InventoryTracker, amount: number, at: number): Observa
   const halfLife = learningCycles * cycleDays(tracker);
   const retained = 0.5 ** (elapsedDays(tracker.usage.at, at) / halfLife);
   const learned = amount <= available && sampleDays > 0;
+  const consumed = available - amount;
+  const expected = sampleDays * tracker.usage.amount / tracker.usage.days;
+  const weight = learned ? agreementWeight(consumed, expected) : 0;
   return {
     tracker: {
       anchor: { amount, at, boughtSince: 0 },
       usage: learned ? {
-        amount: retained * tracker.usage.amount + available - amount,
-        days: retained * tracker.usage.days + sampleDays,
+        amount: retained * tracker.usage.amount + weight * consumed,
+        days: retained * tracker.usage.days + weight * sampleDays,
         at,
       } : tracker.usage,
       cadence: tracker.cadence,
@@ -104,7 +123,7 @@ const observe = (tracker: InventoryTracker, amount: number, at: number): Observa
 };
 
 /**
- * Starts a new, one-cycle estimate at `dailyUse` without changing the
+ * Starts a new, two-cycle estimate at `dailyUse` without changing the
  * estimated amount on hand. Counts observed later remain the evidence that
  * refines this deliberate correction.
  */
@@ -121,7 +140,11 @@ const setDailyUse = (
   return {
     ...tracker,
     anchor: { amount, at, boughtSince: 0 },
-    usage: { amount: dailyUse * days, days, at },
+    usage: {
+      amount: dailyUse * days * manualRateCycles,
+      days: days * manualRateCycles,
+      at,
+    },
     updatedAt: at,
   };
 };

@@ -13,11 +13,18 @@ type Editor =
   | Readonly<{ kind: 'details' | 'count' | 'restock' | 'rate'; id: string }>
   | undefined;
 
+type Drag = Readonly<{
+  id: string;
+  targetId?: string;
+  after?: boolean;
+}>;
+
 export const App = () => {
   const inventory = useInventory();
   const [store, setStore] = useState('');
   const [editor, setEditor] = useState<Editor>();
   const [now, setNow] = useState(Date.now);
+  const [drag, setDrag] = useState<Drag>();
 
   useEffect(() => {
     if (editor) return;
@@ -28,6 +35,7 @@ export const App = () => {
   const { groceries, stores } = inventory.inventory;
   const selectedStore = stores.some(candidate => candidate.id === store) ? store : undefined;
   const queue = Inventory.shoppingQueue(inventory.inventory, now, selectedStore);
+  const hasManualOrder = groceries.some(grocery => grocery.manualRank !== undefined);
   const finish = (error?: string): string | undefined => {
     if (!error) {
       setEditor(undefined);
@@ -62,15 +70,19 @@ export const App = () => {
     />;
 
   const estimates = queue.toArray();
-  const move = (from: number, by: -1 | 1) => {
-    const to = from + by;
-    if (to < 0 || to >= estimates.length) return;
+  const move = (id: string, targetId: string, after: boolean) => {
+    if (id === targetId) return;
     const reordered = [...estimates];
-    const [item] = reordered.splice(from, 1);
-    if (!item) return;
-    reordered.splice(to, 0, item);
-    inventory.reorder(reordered.map(estimate => estimate.grocery.id));
+    const from = reordered.findIndex(estimate => estimate.grocery.id === id);
+    const [item] = from < 0 ? [] : reordered.splice(from, 1);
+    const target = reordered.findIndex(estimate => estimate.grocery.id === targetId);
+    if (!item || target < 0) return;
+    reordered.splice(target + (after ? 1 : 0), 0, item);
+    inventory.reorder(reordered.map(estimate => estimate.grocery.id), id);
   };
+
+  const previewMove = (id: string, targetId: string, after: boolean) =>
+    setDrag(targetId === id ? { id } : { id, targetId, after });
 
   return (
     <main class="workspace">
@@ -102,6 +114,14 @@ export const App = () => {
           </button>)}
       </nav>
 
+      {hasManualOrder &&
+        <aside class="manual-order-notice" aria-label="Manual queue order">
+          <p><strong>Manual order is on.</strong> Dragging now controls the queue.</p>
+          <button type="button" onClick={inventory.usePredictedOrder}>
+            Return to predicted order
+          </button>
+        </aside>}
+
       <section class="queue" aria-label="Groceries by urgency">
         <div class="list-heading">
           <span>ITEM / ESTIMATED AMOUNT LEFT</span>
@@ -116,7 +136,7 @@ export const App = () => {
               </button>
             </div>
           : <ol>
-              {estimates.map((estimate, index) => {
+              {estimates.map(estimate => {
                 const itemEditor = typeof editor === 'object' && editor.id === estimate.grocery.id
                   ? editor.kind
                   : undefined;
@@ -139,17 +159,22 @@ export const App = () => {
                       onCount={grocery => setEditor({ kind: 'count', id: grocery.id })}
                       onRate={grocery => setEditor({ kind: 'rate', id: grocery.id })}
                       onEdit={grocery => setEditor({ kind: 'details', id: grocery.id })}
-                      onMoveEarlier={() => move(index, -1)}
-                      onMoveLater={() => move(index, 1)}
-                      canMoveEarlier={index > 0}
-                      canMoveLater={index < estimates.length - 1}
+                      onMove={move}
+                      onReleaseManualOrder={inventory.releaseManualOrder}
+                      dragging={drag?.id === estimate.grocery.id}
+                      dropPosition={drag?.targetId === estimate.grocery.id
+                        ? drag.after ? 'after' : 'before'
+                        : undefined}
+                      onDragStart={id => setDrag({ id })}
+                      onDragPreview={previewMove}
+                      onDragEnd={(id, targetId, after) => {
+                        setDrag(undefined);
+                        if (targetId !== undefined && after !== undefined)
+                          move(id, targetId, after);
+                      }}
                     />;
               })}
             </ol>}
-        {groceries.some(grocery => grocery.manualRank !== undefined) &&
-          <button class="predicted-order" type="button" onClick={inventory.usePredictedOrder}>
-            Use predicted order
-          </button>}
       </section>
 
       <footer>

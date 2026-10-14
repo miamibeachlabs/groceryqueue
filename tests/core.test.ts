@@ -76,21 +76,28 @@ test('a higher count becomes a calibration without inventing consumption', () =>
   expect(tracker.anchor).toEqual({ amount: 8, at: 0, boughtSince: 0 });
 });
 
-test('a direct rate adjustment takes effect now and has one-cycle weight', () => {
+test('a direct rate adjustment takes effect now and has two-cycle weight', () => {
   const tracker = InventoryTracker.start(8, 4, 0);
   const adjusted = InventoryTracker.setDailyUse(tracker, 1, day);
 
   expect(adjusted.anchor).toEqual({ amount: 6, at: day, boughtSince: 0 });
-  expect(adjusted.usage).toEqual({ amount: 4, days: 4, at: day });
+  expect(adjusted.usage).toEqual({ amount: 8, days: 8, at: day });
   expect(InventoryTracker.estimateAt(adjusted, 3 * day).amount).toBe(4);
 });
 
-test('an unknown item begins with a seven-day prior and accepts zero on hand', () => {
+test('a count far from a direct rate correction is discounted', () => {
+  const adjusted = InventoryTracker.setDailyUse(InventoryTracker.start(10, 5, 0), 1, 0);
+  const observation = InventoryTracker.observe(adjusted, 0, day);
+
+  expect(InventoryTracker.estimateAt(observation.tracker, day).dailyUse).toBeLessThan(1.2);
+});
+
+test('an unknown item begins with a one-per-week prior and accepts zero on hand', () => {
   const tracker = InventoryTracker.startUnknown(0, 0);
 
   expect(InventoryTracker.estimateAt(tracker, 0)).toMatchObject({
     amount: 0,
-    dailyUse: 0,
+    dailyUse: 1 / 7,
     restockCycleDays: 7,
   });
 });
@@ -124,16 +131,20 @@ test('purchases and counts update inventory immutably', () => {
   expect(Inventory.shoppingQueue(inventory, day).peek()?.grocery.id).toBe('beef');
 });
 
-test('a manual order overrides the predicted order until cleared', () => {
+test('manual placement can be released one item at a time', () => {
   const beef: Grocery = {
     id: 'beef', name: 'Beef', storeIds: [], usualRestock: 1,
     tracker: InventoryTracker.start(10, 10, 0),
   };
   const inventory = { groceries: [milk, beef], stores: [wholeFoods] };
-  const manual = Inventory.reorder(inventory, [beef.id, milk.id]);
+  const manual = Inventory.reorder(inventory, [beef.id, milk.id], beef.id);
 
   expect(Inventory.shoppingQueue(manual, day).toArray().map(item => item.grocery.id))
     .toEqual([beef.id, milk.id]);
+  expect(manual.groceries.find(item => item.id === beef.id)?.manualRank).toBe(0);
+  expect(manual.groceries.find(item => item.id === milk.id)?.manualRank).toBeUndefined();
+  expect(Inventory.releaseManualOrder(manual, beef.id).groceries
+    .find(item => item.id === beef.id)?.manualRank).toBeUndefined();
   expect(Inventory.usePredictedOrder(manual).groceries.every(item => item.manualRank === undefined))
     .toBe(true);
 });

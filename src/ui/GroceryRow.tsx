@@ -1,3 +1,4 @@
+import { useRef } from 'preact/hooks';
 import type { Grocery, GroceryEstimate } from '../domain/Grocery.ts';
 import type { StoreCatalog } from '../domain/Store.ts';
 
@@ -9,10 +10,13 @@ type Props = Readonly<{
   onCount: (grocery: Grocery) => void;
   onRate: (grocery: Grocery) => void;
   onEdit: (grocery: Grocery) => void;
-  onMoveEarlier: () => void;
-  onMoveLater: () => void;
-  canMoveEarlier: boolean;
-  canMoveLater: boolean;
+  onMove: (id: string, targetId: string, after: boolean) => void;
+  onReleaseManualOrder: (id: string) => void;
+  dragging: boolean;
+  dropPosition?: 'before' | 'after';
+  onDragStart: (id: string) => void;
+  onDragPreview: (id: string, targetId: string, after: boolean) => void;
+  onDragEnd: (id: string, targetId?: string, after?: boolean) => void;
 }>;
 
 const number = new Intl.NumberFormat('en', { maximumFractionDigits: 2 });
@@ -38,18 +42,44 @@ export const GroceryRow = ({
   onCount,
   onRate,
   onEdit,
-  onMoveEarlier,
-  onMoveLater,
-  canMoveEarlier,
-  canMoveLater,
+  onMove,
+  onReleaseManualOrder,
+  dragging,
+  dropPosition,
+  onDragStart,
+  onDragPreview,
+  onDragEnd,
 }: Props) => {
   const { grocery, today, tomorrow } = estimate;
   const { amount, daysLeft } = today;
+  const pointerId = useRef<number>();
+
+  const targetAt = (x: number, y: number): HTMLElement | undefined =>
+    document.elementFromPoint(x, y)?.closest<HTMLElement>('[data-grocery-id]') ?? undefined;
+
+  const finishDrag = (x: number, y: number) => {
+    const target = targetAt(x, y);
+    const targetId = target?.dataset.groceryId;
+    if (target && targetId) {
+      const bounds = target.getBoundingClientRect();
+      onDragEnd(grocery.id, targetId, y > bounds.top + bounds.height / 2);
+    } else {
+      onDragEnd(grocery.id);
+    }
+    pointerId.current = undefined;
+  };
 
   return (
-    <li class={urgency(daysLeft)}>
+    <li class={`${urgency(daysLeft)}${dragging ? ' dragging' : ''}${dropPosition ? ` drop-${dropPosition}` : ''}`}
+      data-grocery-id={grocery.id}>
       <div class="item-description">
-        <h2>{grocery.name}</h2>
+        <h2>
+          {grocery.name}
+          {grocery.manualRank !== undefined &&
+            <span class="manual-badge">
+              Manual <button type="button" onClick={() => onReleaseManualOrder(grocery.id)}>Release</button>
+            </span>}
+        </h2>
         <div class="amount-line">
           <p>About {number.format(amount)} left</p>
           <button class="primary compact" type="button" onClick={() => onCount(grocery)}>
@@ -89,12 +119,40 @@ export const GroceryRow = ({
         <button class="edit-details" type="button" onClick={() => onEdit(grocery)}>
           <span class="wide-label">Edit details</span><span class="phone-label">Edit</span>
         </button>
-        <div class="priority-controls" aria-label={`Move ${grocery.name} in the queue`}>
-          <button type="button" disabled={!canMoveEarlier} onClick={onMoveEarlier}
-            aria-label={`Move ${grocery.name} earlier`}>↑</button>
-          <button type="button" disabled={!canMoveLater} onClick={onMoveLater}
-            aria-label={`Move ${grocery.name} later`}>↓</button>
-        </div>
+        <button class="drag-handle" type="button"
+          aria-label={`Drag ${grocery.name} to reorder. Use up and down arrows with a keyboard.`}
+          onPointerDown={event => {
+            pointerId.current = event.pointerId;
+            event.currentTarget.setPointerCapture(event.pointerId);
+            onDragStart(grocery.id);
+          }}
+          onPointerMove={event => {
+            if (pointerId.current !== event.pointerId) return;
+            const target = targetAt(event.clientX, event.clientY);
+            const targetId = target?.dataset.groceryId;
+            if (!targetId) return;
+            const bounds = target.getBoundingClientRect();
+            onDragPreview(grocery.id, targetId, event.clientY > bounds.top + bounds.height / 2);
+          }}
+          onPointerUp={event => {
+            if (pointerId.current === event.pointerId)
+              finishDrag(event.clientX, event.clientY);
+          }}
+          onPointerCancel={() => {
+            pointerId.current = undefined;
+            onDragEnd(grocery.id);
+          }}
+          onKeyDown={event => {
+            if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+              event.preventDefault();
+              const row = event.currentTarget.closest<HTMLElement>('[data-grocery-id]');
+              const sibling = event.key === 'ArrowUp' ? row?.previousElementSibling : row?.nextElementSibling;
+              const targetId = sibling instanceof HTMLElement ? sibling.dataset.groceryId : undefined;
+              if (targetId) onMove(grocery.id, targetId, event.key === 'ArrowDown');
+            }
+          }}>
+          <span aria-hidden="true">⠿</span>
+        </button>
       </div>
     </li>
   );
