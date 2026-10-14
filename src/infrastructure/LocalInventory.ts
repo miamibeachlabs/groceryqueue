@@ -22,6 +22,8 @@ const isNonnegative = (value: unknown): value is number =>
   typeof value === 'number' && Number.isFinite(value) && value >= 0;
 const isPositive = (value: unknown): value is number =>
   typeof value === 'number' && Number.isFinite(value) && value > 0;
+const isRank = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isInteger(value) && value >= 0;
 
 const isTime = isNonnegative;
 
@@ -70,6 +72,7 @@ const isGrocery = (value: unknown): value is Grocery =>
   && Array.isArray(value.storeIds)
   && value.storeIds.every(isText)
   && isPositive(value.usualRestock)
+  && (value.manualRank === undefined || isRank(value.manualRank))
   && isTracker(value.tracker);
 
 type LegacyGrocery = Omit<Grocery, 'tracker'> & Readonly<{ history: InventoryHistory }>;
@@ -93,9 +96,7 @@ const trackerFrom = (history: InventoryHistory): Tracker => {
       tracker = InventoryTracker.restock(tracker, event.amount, event.at);
       continue;
     }
-    const result = InventoryTracker.observe(tracker, event.amount, event.at);
-    if (result.kind !== 'recorded') throw new Error(invalidData);
-    tracker = result.tracker;
+    tracker = InventoryTracker.observe(tracker, event.amount, event.at).tracker;
   }
   return tracker;
 };

@@ -61,12 +61,7 @@ export const useInventory = () => {
     transact(inventory => Inventory.change(inventory, change));
 
   const count = (id: string, amount: number): string | undefined =>
-    transact(inventory => {
-      const result = Inventory.count(inventory, id, amount, Date.now());
-      return result.kind === 'recorded'
-        ? result.inventory
-        : `That count suggests about ${result.amount.toFixed(2)} was added. Record what you bought first.`;
-    });
+    transact(inventory => Inventory.count(inventory, id, amount, Date.now()));
 
   const replaceInventory = (inventory: GroceryInventory): void => {
     repository.save(inventory);
@@ -83,6 +78,10 @@ export const useInventory = () => {
     restock: (id: string, amount: number) =>
       transact(inventory => Inventory.restock(inventory, id, amount, Date.now())),
     count,
+    setDailyUse: (id: string, dailyUse: number) => transact(inventory =>
+      Inventory.setDailyUse(inventory, id, dailyUse, Date.now())),
+    reorder: (ids: readonly string[]) => transact(inventory => Inventory.reorder(inventory, ids)),
+    usePredictedOrder: () => transact(Inventory.usePredictedOrder),
     exportData: () => repository.export(state.inventory),
     prepareImport: (text: string): ImportPlan => repository.prepareImport(text),
     replaceInventory,

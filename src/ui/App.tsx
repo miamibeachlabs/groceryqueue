@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'preact/hooks';
 import { Inventory, type Grocery } from '../domain/Grocery.ts';
+import { InventoryTracker } from '../domain/InventoryTracker.ts';
 import { GroceryForm } from './GroceryForm.tsx';
 import { GroceryRow } from './GroceryRow.tsx';
 import { InventoryActionForm } from './InventoryActionForm.tsx';
@@ -9,7 +10,7 @@ import { useInventory } from './useInventory.ts';
 
 type Editor =
   | 'new'
-  | Readonly<{ kind: 'details' | 'count' | 'restock'; id: string }>
+  | Readonly<{ kind: 'details' | 'count' | 'restock' | 'rate'; id: string }>
   | undefined;
 
 export const App = () => {
@@ -47,16 +48,29 @@ export const App = () => {
       onCancel={() => setEditor(undefined)}
     />;
 
-  const actionForm = (grocery: Grocery, kind: 'count' | 'restock') =>
+  const actionForm = (grocery: Grocery, kind: 'count' | 'restock' | 'rate') =>
     <InventoryActionForm
       action={kind}
       name={grocery.name}
-      suggestedAmount={grocery.usualRestock}
-      onSubmit={amount => finish(kind === 'count'
-        ? inventory.count(grocery.id, amount)
+      suggestedAmount={kind === 'rate'
+        ? InventoryTracker.estimateAt(grocery.tracker, now).dailyUse
+        : grocery.usualRestock}
+      onSubmit={amount => finish(kind === 'count' ? inventory.count(grocery.id, amount)
+        : kind === 'rate' ? inventory.setDailyUse(grocery.id, amount)
         : inventory.restock(grocery.id, amount))}
       onCancel={() => setEditor(undefined)}
     />;
+
+  const estimates = queue.toArray();
+  const move = (from: number, by: -1 | 1) => {
+    const to = from + by;
+    if (to < 0 || to >= estimates.length) return;
+    const reordered = [...estimates];
+    const [item] = reordered.splice(from, 1);
+    if (!item) return;
+    reordered.splice(to, 0, item);
+    inventory.reorder(reordered.map(estimate => estimate.grocery.id));
+  };
 
   return (
     <main class="workspace">
@@ -102,7 +116,7 @@ export const App = () => {
               </button>
             </div>
           : <ol>
-              {queue.toArray().map(estimate => {
+              {estimates.map((estimate, index) => {
                 const itemEditor = typeof editor === 'object' && editor.id === estimate.grocery.id
                   ? editor.kind
                   : undefined;
@@ -123,10 +137,19 @@ export const App = () => {
                       ))}
                       onOtherRestock={grocery => setEditor({ kind: 'restock', id: grocery.id })}
                       onCount={grocery => setEditor({ kind: 'count', id: grocery.id })}
+                      onRate={grocery => setEditor({ kind: 'rate', id: grocery.id })}
                       onEdit={grocery => setEditor({ kind: 'details', id: grocery.id })}
+                      onMoveEarlier={() => move(index, -1)}
+                      onMoveLater={() => move(index, 1)}
+                      canMoveEarlier={index > 0}
+                      canMoveLater={index < estimates.length - 1}
                     />;
               })}
             </ol>}
+        {groceries.some(grocery => grocery.manualRank !== undefined) &&
+          <button class="predicted-order" type="button" onClick={inventory.usePredictedOrder}>
+            Use predicted order
+          </button>}
       </section>
 
       <footer>

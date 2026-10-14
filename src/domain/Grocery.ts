@@ -15,6 +15,7 @@ export type Grocery = Readonly<{
   name: string;
   storeIds: readonly string[];
   usualRestock: number;
+  manualRank?: number;
   tracker: Tracker;
 }>;
 
@@ -35,10 +36,6 @@ export type InventoryChange =
   | Readonly<{ kind: 'addStore'; store: Store }>
   | Readonly<{ kind: 'renameStore'; id: string; name: string }>;
 
-export type StockCountResult =
-  | Readonly<{ kind: 'recorded'; inventory: Inventory }>
-  | Readonly<{ kind: 'missingRestock'; amount: number }>;
-
 const day = 86_400_000;
 
 const empty = (): Inventory => ({ groceries: [], stores: Stores.defaults });
@@ -49,10 +46,18 @@ const estimateAt = (now: number, grocery: Grocery): GroceryEstimate => ({
   tomorrow: InventoryTracker.estimateAt(grocery.tracker, now + day),
 });
 
-const byUrgency: Comparator<GroceryEstimate> = (left, right) =>
-  left.today.daysLeft < right.today.daysLeft ? -1
-  : left.today.daysLeft > right.today.daysLeft ? 1
-  : 0;
+const byUrgency: Comparator<GroceryEstimate> = (left, right) => {
+  const leftRank = left.grocery.manualRank;
+  const rightRank = right.grocery.manualRank;
+  if (leftRank !== undefined || rightRank !== undefined) {
+    if (leftRank === undefined) return 1;
+    if (rightRank === undefined) return -1;
+    if (leftRank !== rightRank) return leftRank - rightRank;
+  }
+  return left.today.daysLeft < right.today.daysLeft ? -1
+    : left.today.daysLeft > right.today.daysLeft ? 1
+    : 0;
+};
 
 const update = (
   inventory: Inventory,
@@ -80,21 +85,38 @@ const count = (
   id: string,
   amount: number,
   at: number,
-): StockCountResult => {
+): Inventory => {
   const grocery = inventory.groceries.find(candidate => candidate.id === id);
-  if (!grocery) return { kind: 'recorded', inventory };
+  if (!grocery) return inventory;
   const result = InventoryTracker.observe(grocery.tracker, amount, at);
-
-  return result.kind === 'missingRestock'
-    ? result
-    : {
-        kind: 'recorded',
-        inventory: update(inventory, id, item => ({
-          ...item,
-          tracker: result.tracker,
-        })),
-      };
+  return update(inventory, id, item => ({ ...item, tracker: result.tracker }));
 };
+
+const setDailyUse = (
+  inventory: Inventory,
+  id: string,
+  dailyUse: number,
+  at: number,
+): Inventory => update(inventory, id, grocery => ({
+  ...grocery,
+  tracker: InventoryTracker.setDailyUse(grocery.tracker, dailyUse, at),
+}));
+
+const reorder = (inventory: Inventory, ids: readonly string[]): Inventory => {
+  const ranks = new Map(ids.map((id, index) => [id, index]));
+  return {
+    ...inventory,
+    groceries: inventory.groceries.map(grocery => {
+      const manualRank = ranks.get(grocery.id);
+      return manualRank === undefined ? grocery : { ...grocery, manualRank };
+    }),
+  };
+};
+
+const usePredictedOrder = (inventory: Inventory): Inventory => ({
+  ...inventory,
+  groceries: inventory.groceries.map(({ manualRank: _manualRank, ...grocery }) => grocery),
+});
 
 const change = (inventory: Inventory, change: InventoryChange): Inventory => {
   if (change.kind === 'remove')
@@ -157,5 +179,8 @@ export const Inventory = {
   change,
   restock,
   count,
+  setDailyUse,
+  reorder,
+  usePredictedOrder,
   shoppingQueue,
 } as const;

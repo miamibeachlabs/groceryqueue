@@ -29,8 +29,6 @@ test('counts and variable restocks telescope into consumption evidence', () => {
   tracker = InventoryTracker.restock(tracker, 7, day);
   tracker = InventoryTracker.restock(tracker, 5, 2 * day);
   const observation = InventoryTracker.observe(tracker, 18, 3 * day);
-  expect(observation.kind).toBe('recorded');
-  if (observation.kind !== 'recorded') return;
 
   const estimate = InventoryTracker.estimateAt(observation.tracker, 3 * day);
   expect(estimate.dailyUse).toBeCloseTo(2);
@@ -52,8 +50,6 @@ test('usage evidence has a half-life of one purchase cycle', () => {
   tracker = InventoryTracker.restock(tracker, 10, 10 * day);
   tracker = InventoryTracker.restock(tracker, 10, 20 * day);
   const observation = InventoryTracker.observe(tracker, 10, 20 * day);
-  expect(observation.kind).toBe('recorded');
-  if (observation.kind !== 'recorded') return;
 
   expect(observation.tracker.usage.amount).toBe(22.5);
   expect(observation.tracker.usage.days).toBe(22.5);
@@ -70,12 +66,33 @@ test('several purchases in one shopping episode do not collapse the learning tim
   expect(tomorrow.daysLeft).toBeGreaterThan(80);
 });
 
-test('a count cannot silently imply an unrecorded purchase', () => {
+test('a higher count becomes a calibration without inventing consumption', () => {
   const tracker = InventoryTracker.start(8, 4, 0);
   const result = InventoryTracker.observe(tracker, 11, day);
 
-  expect(result).toEqual({ kind: 'missingRestock', amount: 3 });
+  expect(result.learned).toBe(false);
+  expect(result.tracker.anchor).toEqual({ amount: 11, at: day, boughtSince: 0 });
+  expect(InventoryTracker.estimateAt(result.tracker, day).dailyUse).toBe(2);
   expect(tracker.anchor).toEqual({ amount: 8, at: 0, boughtSince: 0 });
+});
+
+test('a direct rate adjustment takes effect now and has one-cycle weight', () => {
+  const tracker = InventoryTracker.start(8, 4, 0);
+  const adjusted = InventoryTracker.setDailyUse(tracker, 1, day);
+
+  expect(adjusted.anchor).toEqual({ amount: 6, at: day, boughtSince: 0 });
+  expect(adjusted.usage).toEqual({ amount: 4, days: 4, at: day });
+  expect(InventoryTracker.estimateAt(adjusted, 3 * day).amount).toBe(4);
+});
+
+test('an unknown item begins with a seven-day prior and accepts zero on hand', () => {
+  const tracker = InventoryTracker.startUnknown(0, 0);
+
+  expect(InventoryTracker.estimateAt(tracker, 0)).toMatchObject({
+    amount: 0,
+    dailyUse: 0,
+    restockCycleDays: 7,
+  });
 });
 
 test('the priority queue presents behavior without exposing its representation', () => {
@@ -102,9 +119,23 @@ test('purchases and counts update inventory immutably', () => {
 
   expect(purchased.groceries[1]?.usualRestock).toBe(4);
   expect(purchased.groceries[1]?.tracker.anchor.boughtSince).toBe(4);
-  expect(counted.kind).toBe('recorded');
+  expect(counted.groceries[1]?.tracker.anchor.amount).toBe(4);
   expect(inventory.groceries[1]?.usualRestock).toBe(3);
   expect(Inventory.shoppingQueue(inventory, day).peek()?.grocery.id).toBe('beef');
+});
+
+test('a manual order overrides the predicted order until cleared', () => {
+  const beef: Grocery = {
+    id: 'beef', name: 'Beef', storeIds: [], usualRestock: 1,
+    tracker: InventoryTracker.start(10, 10, 0),
+  };
+  const inventory = { groceries: [milk, beef], stores: [wholeFoods] };
+  const manual = Inventory.reorder(inventory, [beef.id, milk.id]);
+
+  expect(Inventory.shoppingQueue(manual, day).toArray().map(item => item.grocery.id))
+    .toEqual([beef.id, milk.id]);
+  expect(Inventory.usePredictedOrder(manual).groceries.every(item => item.manualRank === undefined))
+    .toBe(true);
 });
 
 test('store names remain unique and renaming can merge them', () => {

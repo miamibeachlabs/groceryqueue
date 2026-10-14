@@ -21,8 +21,10 @@ const valueOf = (form: FormData, name: string): string => {
   return typeof value === 'string' ? value : '';
 };
 
-const numberOf = (form: FormData, name: string): number =>
-  Number(valueOf(form, name));
+const optionalNumber = (form: FormData, name: string): number | undefined => {
+  const value = valueOf(form, name).trim();
+  return value === '' ? undefined : Number(value);
+};
 
 export const GroceryForm = ({
   grocery,
@@ -42,9 +44,9 @@ export const GroceryForm = ({
     event.preventDefault();
     const form = new FormData(event.currentTarget as HTMLFormElement);
     const name = valueOf(form, 'name').trim();
-    const usualRestock = numberOf(form, 'usualRestock');
+    const usualRestock = optionalNumber(form, 'usualRestock') ?? 1;
     if (!name || !Number.isFinite(usualRestock) || usualRestock <= 0) {
-      setError('Enter a name and positive amounts of time and groceries.');
+      setError('Enter a name and a positive usual purchase amount.');
       return;
     }
 
@@ -54,11 +56,11 @@ export const GroceryForm = ({
       return;
     }
 
-    const amount = numberOf(form, 'amount');
-    const interval = numberOf(form, 'interval');
+    const amount = optionalNumber(form, 'amount') ?? 0;
+    const interval = optionalNumber(form, 'interval');
     if (!Number.isFinite(amount) || amount < 0
-      || !Number.isFinite(interval) || interval <= 0) {
-      setError('Enter a name and positive amounts of time and groceries.');
+      || (interval !== undefined && (!Number.isFinite(interval) || interval <= 0))) {
+      setError('Amounts and time must be valid when provided.');
       return;
     }
 
@@ -67,11 +69,9 @@ export const GroceryForm = ({
       name,
       storeIds,
       usualRestock,
-      tracker: InventoryTracker.start(
-        amount,
-        interval * (unit === 'week' ? 7 : 1),
-        Date.now(),
-      ),
+      tracker: interval === undefined
+        ? InventoryTracker.startUnknown(amount, Date.now())
+        : InventoryTracker.start(amount, interval * (unit === 'week' ? 7 : 1), Date.now()),
     });
     if (saveError) setError(saveError);
   };
@@ -92,24 +92,25 @@ export const GroceryForm = ({
         </label>
         {!grocery && <>
           <label class="field stock-field">
-            <span>How much do you have?</span>
-            <input name="amount" type="number" inputMode="decimal" min="0" step="any" placeholder="8" required />
+            <span>How much do you have? <small>Optional</small></span>
+            <input name="amount" type="number" inputMode="decimal" min="0" step="any" placeholder="8" />
           </label>
           <fieldset class="usage-fields">
-            <legend>About how long until it runs out?</legend>
+            <legend>About how long until it runs out? <small>Optional</small></legend>
             <input aria-label="Time until it runs out" name="interval" type="number"
-              inputMode="decimal" min="0.01" step="any" placeholder="1" required />
+              inputMode="decimal" min="0.01" step="any" placeholder="1" />
             <select aria-label="Time unit" value={unit}
               onInput={event => setUnit(event.currentTarget.value === 'day' ? 'day' : 'week')}>
               <option value="day">days</option>
               <option value="week">weeks</option>
             </select>
           </fieldset>
+          <p class="field-help">Add what you know. A blank amount means none; a blank time begins with a gentle one-week estimate that later counts refine.</p>
         </>}
         <label class="field stock-field">
-          <span>How much do you usually buy?</span>
+          <span>How much do you usually buy? <small>Optional</small></span>
           <input name="usualRestock" type="number" inputMode="decimal" min="0.01"
-            step="any" defaultValue={grocery?.usualRestock} placeholder="12" required />
+            step="any" defaultValue={grocery?.usualRestock} placeholder="1" />
         </label>
         <StorePicker stores={stores} selected={storeIds} onSelect={setStoreIds}
           onAdd={onAddStore} onRename={onRenameStore} />

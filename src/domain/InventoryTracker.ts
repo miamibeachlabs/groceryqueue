@@ -22,13 +22,15 @@ export type InventoryEstimate = Readonly<{
   observations: number;
 }>;
 
-export type ObservationResult =
-  | Readonly<{ kind: 'recorded'; tracker: InventoryTracker }>
-  | Readonly<{ kind: 'missingRestock'; amount: number }>;
+export type ObservationResult = Readonly<{
+  tracker: InventoryTracker;
+  learned: boolean;
+}>;
 
 const millisecondsPerDay = 86_400_000;
 const learningCycles = 1;
 const rememberedIntervals = 5;
+const unknownPriorDays = 7;
 
 const elapsedDays = (from: number, to: number): number =>
   Math.max(0, to - from) / millisecondsPerDay;
@@ -57,6 +59,9 @@ const start = (amount: number, expectedDays: number, at: number): InventoryTrack
   };
 };
 
+const startUnknown = (amount: number, at: number): InventoryTracker =>
+  start(amount, unknownPriorDays, at);
+
 const restock = (tracker: InventoryTracker, amount: number, at: number): InventoryTracker => {
   if (amount <= 0 || at < tracker.updatedAt)
     throw new RangeError('A purchase must be positive and chronological.');
@@ -78,25 +83,46 @@ const observe = (tracker: InventoryTracker, amount: number, at: number): Observa
   if (amount < 0 || at < tracker.updatedAt)
     throw new RangeError('A count must be nonnegative and chronological.');
   const available = tracker.anchor.amount + tracker.anchor.boughtSince;
-  if (amount > available)
-    return { kind: 'missingRestock', amount: amount - available };
-
   const sampleDays = elapsedDays(tracker.anchor.at, at);
   const halfLife = learningCycles * cycleDays(tracker);
   const retained = 0.5 ** (elapsedDays(tracker.usage.at, at) / halfLife);
+  const learned = amount <= available && sampleDays > 0;
   return {
-    kind: 'recorded',
     tracker: {
       anchor: { amount, at, boughtSince: 0 },
-      usage: sampleDays === 0 ? tracker.usage : {
+      usage: learned ? {
         amount: retained * tracker.usage.amount + available - amount,
         days: retained * tracker.usage.days + sampleDays,
         at,
-      },
+      } : tracker.usage,
       cadence: tracker.cadence,
       observations: tracker.observations + 1,
       updatedAt: at,
     },
+    learned,
+  };
+};
+
+/**
+ * Starts a new, one-cycle estimate at `dailyUse` without changing the
+ * estimated amount on hand. Counts observed later remain the evidence that
+ * refines this deliberate correction.
+ */
+const setDailyUse = (
+  tracker: InventoryTracker,
+  dailyUse: number,
+  at: number,
+): InventoryTracker => {
+  if (dailyUse < 0 || !Number.isFinite(dailyUse) || at < tracker.updatedAt)
+    throw new RangeError('Daily use must be nonnegative and chronological.');
+
+  const amount = estimateAt(tracker, at).amount;
+  const days = cycleDays(tracker);
+  return {
+    ...tracker,
+    anchor: { amount, at, boughtSince: 0 },
+    usage: { amount: dailyUse * days, days, at },
+    updatedAt: at,
   };
 };
 
@@ -114,4 +140,11 @@ const estimateAt = (tracker: InventoryTracker, now: number): InventoryEstimate =
 };
 
 /** A constant-space inventory estimate learned from counts and purchases. */
-export const InventoryTracker = { start, restock, observe, estimateAt } as const;
+export const InventoryTracker = {
+  start,
+  startUnknown,
+  restock,
+  observe,
+  setDailyUse,
+  estimateAt,
+} as const;

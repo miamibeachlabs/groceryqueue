@@ -7,7 +7,12 @@ type Props = Readonly<{
   onRestock: (grocery: Grocery) => void;
   onOtherRestock: (grocery: Grocery) => void;
   onCount: (grocery: Grocery) => void;
+  onRate: (grocery: Grocery) => void;
   onEdit: (grocery: Grocery) => void;
+  onMoveEarlier: () => void;
+  onMoveLater: () => void;
+  canMoveEarlier: boolean;
+  canMoveLater: boolean;
 }>;
 
 const number = new Intl.NumberFormat('en', { maximumFractionDigits: 2 });
@@ -31,7 +36,12 @@ export const GroceryRow = ({
   onRestock,
   onOtherRestock,
   onCount,
+  onRate,
   onEdit,
+  onMoveEarlier,
+  onMoveLater,
+  canMoveEarlier,
+  canMoveLater,
 }: Props) => {
   const { grocery, today, tomorrow } = estimate;
   const { amount, daysLeft } = today;
@@ -52,6 +62,10 @@ export const GroceryRow = ({
               .join(' · ') || 'No store specified'}
           </p>
         </div>
+        <p class="rate">
+          Uses about {number.format(today.dailyUse)} per day
+          <button type="button" onClick={() => onRate(grocery)}>Adjust rate</button>
+        </p>
         <div class="depletion" role="img"
           aria-label={`${duration(daysLeft)} today; ${duration(tomorrow.daysLeft)} tomorrow; seven-day scale`}>
           <span class="today" style={{ width: `${positionOnHorizon(daysLeft)}%` }} />
@@ -75,6 +89,12 @@ export const GroceryRow = ({
         <button class="edit-details" type="button" onClick={() => onEdit(grocery)}>
           <span class="wide-label">Edit details</span><span class="phone-label">Edit</span>
         </button>
+        <div class="priority-controls" aria-label={`Move ${grocery.name} in the queue`}>
+          <button type="button" disabled={!canMoveEarlier} onClick={onMoveEarlier}
+            aria-label={`Move ${grocery.name} earlier`}>↑</button>
+          <button type="button" disabled={!canMoveLater} onClick={onMoveLater}
+            aria-label={`Move ${grocery.name} later`}>↓</button>
+        </div>
       </div>
     </li>
   );
