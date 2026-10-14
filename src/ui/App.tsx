@@ -3,6 +3,7 @@ import { Inventory, type Grocery } from '../domain/Grocery.ts';
 import { GroceryForm } from './GroceryForm.tsx';
 import { GroceryRow } from './GroceryRow.tsx';
 import { InventoryActionForm } from './InventoryActionForm.tsx';
+import { DataTransfer } from './DataTransfer.tsx';
 import { MiamiBeachLabsBrand } from './MiamiBeachLabsBrand.tsx';
 import { useInventory } from './useInventory.ts';
 
@@ -129,6 +130,11 @@ export const App = () => {
       </section>
 
       <footer>
+        <DataTransfer
+          exportData={inventory.exportData}
+          prepareImport={inventory.prepareImport}
+          replaceInventory={inventory.replaceInventory}
+        />
         <p>Counts teach the app how quickly each item is used.</p>
         <p>Saved in this browser only. Devices do not sync.</p>
       </footer>

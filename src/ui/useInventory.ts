@@ -6,7 +6,7 @@ import {
   type InventoryChange,
 } from '../domain/Grocery.ts';
 import type { Store } from '../domain/Store.ts';
-import { LocalInventory } from '../infrastructure/LocalInventory.ts';
+import { LocalInventory, type ImportPlan } from '../infrastructure/LocalInventory.ts';
 
 type State = Readonly<{
   inventory: GroceryInventory;
@@ -68,6 +68,11 @@ export const useInventory = () => {
         : `That count suggests about ${result.amount.toFixed(2)} was added. Record what you bought first.`;
     });
 
+  const replaceInventory = (inventory: GroceryInventory): void => {
+    repository.save(inventory);
+    setState({ inventory });
+  };
+
   return {
     ...state,
     save: (grocery: Grocery) => commit({ kind: 'save', grocery }),
@@ -78,5 +83,8 @@ export const useInventory = () => {
     restock: (id: string, amount: number) =>
       transact(inventory => Inventory.restock(inventory, id, amount, Date.now())),
     count,
+    exportData: () => repository.export(state.inventory),
+    prepareImport: (text: string): ImportPlan => repository.prepareImport(text),
+    replaceInventory,
   } as const;
 };

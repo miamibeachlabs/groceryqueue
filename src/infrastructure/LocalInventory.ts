@@ -5,8 +5,14 @@ import { Stores, type Store } from '../domain/Store.ts';
 
 const key = 'grocery-queue.learned.v1';
 const invalidData = 'Saved groceries could not be read. Your stored data has been left untouched.';
+const invalidImport = 'That file is not a valid Grocery Queue export. Your data has been left untouched.';
 
 type StoragePort = Pick<Storage, 'getItem' | 'setItem'>;
+
+export type ImportPlan = Readonly<{
+  inventory: GroceryInventory;
+  backup: string;
+}>;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null;
@@ -135,6 +141,28 @@ const decode = (text: string): GroceryInventory => {
   return inventory;
 };
 
+const encode = (inventory: GroceryInventory, exportedAt: number): string =>
+  JSON.stringify({
+    format: 'grocery-queue',
+    schemaVersion: 1,
+    exportedAt: new Date(exportedAt).toISOString(),
+    inventory: { version: 2, ...inventory },
+  }, null, 2);
+
+const decodeExport = (text: string): GroceryInventory => {
+  try {
+    const value: unknown = JSON.parse(text);
+    if (!isRecord(value)
+      || value.format !== 'grocery-queue'
+      || value.schemaVersion !== 1
+      || typeof value.exportedAt !== 'string'
+      || !isRecord(value.inventory)) throw new Error(invalidImport);
+    return decode(JSON.stringify(value.inventory));
+  } catch {
+    throw new Error(invalidImport);
+  }
+};
+
 /** The single effectful boundary for learned grocery inventory. */
 export class LocalInventory {
   constructor(private readonly storage: StoragePort) {}
@@ -161,5 +189,14 @@ export class LocalInventory {
     } catch {
       throw new Error('Could not save. Your changes have not been applied.');
     }
+  }
+
+  export(inventory: GroceryInventory, exportedAt = Date.now()): string {
+    return encode(inventory, exportedAt);
+  }
+
+  prepareImport(text: string, exportedAt = Date.now()): ImportPlan {
+    const inventory = decodeExport(text);
+    return { inventory, backup: this.export(this.load(), exportedAt) };
   }
 }

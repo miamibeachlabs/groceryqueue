@@ -1,5 +1,9 @@
 # Grocery Queue
 
+Your groceries stay in this browser. Use **Export data** to save a portable JSON
+copy; use **Import data** to replace a device’s data after first downloading a
+backup of what was already there.
+
 A small personal grocery list that learns when each item will run out. Its domain is pure TypeScript; its interface uses Preact and TSX.
 
 ## Commands

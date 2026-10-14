@@ -136,6 +136,44 @@ test('learned inventory has independent storage and round-trips', () => {
   expect(JSON.parse(stored ?? '').version).toBe(2);
 });
 
+test('portable inventory exports round-trip and import leaves storage untouched until saved', () => {
+  let stored = JSON.stringify({ version: 2, groceries: [milk], stores: [wholeFoods] });
+  const repository = new LocalInventory({
+    getItem: () => stored,
+    setItem: (_key, value) => { stored = value; },
+  });
+  const replacement = { groceries: [], stores: [wholeFoods] };
+  const exported = repository.export(replacement, 0);
+  const plan = repository.prepareImport(exported, 86_400_000);
+
+  expect(JSON.parse(exported)).toMatchObject({
+    format: 'grocery-queue',
+    schemaVersion: 1,
+    exportedAt: '1970-01-01T00:00:00.000Z',
+  });
+  expect(plan.inventory).toEqual(replacement);
+  expect(repository.load()).toEqual({ groceries: [milk], stores: [wholeFoods] });
+  expect(JSON.parse(plan.backup)).toMatchObject({
+    exportedAt: '1970-01-02T00:00:00.000Z',
+    inventory: { groceries: [milk], stores: [wholeFoods] },
+  });
+
+  repository.save(plan.inventory);
+  expect(repository.load()).toEqual(replacement);
+});
+
+test('portable inventory rejects malformed exports without changing saved groceries', () => {
+  let stored = JSON.stringify({ version: 2, groceries: [milk], stores: [wholeFoods] });
+  const repository = new LocalInventory({
+    getItem: () => stored,
+    setItem: (_key, value) => { stored = value; },
+  });
+
+  expect(() => repository.prepareImport('{"format":"grocery-queue"}'))
+    .toThrow('not a valid Grocery Queue export');
+  expect(repository.load()).toEqual({ groceries: [milk], stores: [wholeFoods] });
+});
+
 test('event histories migrate once into constant-space trackers', () => {
   const legacy = JSON.stringify({
     version: 1,
