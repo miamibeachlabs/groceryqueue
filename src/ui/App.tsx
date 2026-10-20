@@ -81,6 +81,11 @@ export const App = () => {
     inventory.reorder(reordered.map(estimate => estimate.grocery.id), id);
   };
 
+  const moveToTop = (id: string) => {
+    const first = estimates[0]?.grocery.id;
+    if (first) move(id, first, false);
+  };
+
   const previewMove = (id: string, targetId: string, after: boolean) =>
     setDrag(targetId === id ? { id } : { id, targetId, after });
 
@@ -160,6 +165,7 @@ export const App = () => {
                       onRate={grocery => setEditor({ kind: 'rate', id: grocery.id })}
                       onEdit={grocery => setEditor({ kind: 'details', id: grocery.id })}
                       onMove={move}
+                      onMoveToTop={moveToTop}
                       onReleaseManualOrder={inventory.releaseManualOrder}
                       dragging={drag?.id === estimate.grocery.id}
                       dropPosition={drag?.targetId === estimate.grocery.id

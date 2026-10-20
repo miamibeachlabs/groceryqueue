@@ -11,6 +11,7 @@ type Props = Readonly<{
   onRate: (grocery: Grocery) => void;
   onEdit: (grocery: Grocery) => void;
   onMove: (id: string, targetId: string, after: boolean) => void;
+  onMoveToTop: (id: string) => void;
   onReleaseManualOrder: (id: string) => void;
   dragging: boolean;
   dropPosition?: 'before' | 'after';
@@ -43,6 +44,7 @@ export const GroceryRow = ({
   onRate,
   onEdit,
   onMove,
+  onMoveToTop,
   onReleaseManualOrder,
   dragging,
   dropPosition,
@@ -119,40 +121,48 @@ export const GroceryRow = ({
         <button class="edit-details" type="button" onClick={() => onEdit(grocery)}>
           <span class="wide-label">Edit details</span><span class="phone-label">Edit</span>
         </button>
-        <button class="drag-handle" type="button"
-          aria-label={`Drag ${grocery.name} to reorder. Use up and down arrows with a keyboard.`}
-          onPointerDown={event => {
-            pointerId.current = event.pointerId;
-            event.currentTarget.setPointerCapture(event.pointerId);
-            onDragStart(grocery.id);
-          }}
-          onPointerMove={event => {
-            if (pointerId.current !== event.pointerId) return;
-            const target = targetAt(event.clientX, event.clientY);
-            const targetId = target?.dataset.groceryId;
-            if (!targetId) return;
-            const bounds = target.getBoundingClientRect();
-            onDragPreview(grocery.id, targetId, event.clientY > bounds.top + bounds.height / 2);
-          }}
-          onPointerUp={event => {
-            if (pointerId.current === event.pointerId)
-              finishDrag(event.clientX, event.clientY);
-          }}
-          onPointerCancel={() => {
-            pointerId.current = undefined;
-            onDragEnd(grocery.id);
-          }}
-          onKeyDown={event => {
-            if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+        <div class="reorder-actions">
+          <button class="move-top" type="button" onClick={() => onMoveToTop(grocery.id)}
+            aria-label={`Move ${grocery.name} to the top of the queue`} title="Move to top">
+            <span aria-hidden="true">⇧</span><span class="wide-label">Top</span>
+          </button>
+          <button class="drag-handle" type="button" draggable={false}
+            aria-label={`Drag ${grocery.name} to reorder. Use up and down arrows with a keyboard.`}
+            onPointerDown={event => {
               event.preventDefault();
-              const row = event.currentTarget.closest<HTMLElement>('[data-grocery-id]');
-              const sibling = event.key === 'ArrowUp' ? row?.previousElementSibling : row?.nextElementSibling;
-              const targetId = sibling instanceof HTMLElement ? sibling.dataset.groceryId : undefined;
-              if (targetId) onMove(grocery.id, targetId, event.key === 'ArrowDown');
-            }
-          }}>
-          <span aria-hidden="true">⠿</span>
-        </button>
+              pointerId.current = event.pointerId;
+              event.currentTarget.setPointerCapture(event.pointerId);
+              onDragStart(grocery.id);
+            }}
+            onPointerMove={event => {
+              if (pointerId.current !== event.pointerId) return;
+              event.preventDefault();
+              const target = targetAt(event.clientX, event.clientY);
+              const targetId = target?.dataset.groceryId;
+              if (!targetId) return;
+              const bounds = target.getBoundingClientRect();
+              onDragPreview(grocery.id, targetId, event.clientY > bounds.top + bounds.height / 2);
+            }}
+            onPointerUp={event => {
+              if (pointerId.current === event.pointerId)
+                finishDrag(event.clientX, event.clientY);
+            }}
+            onPointerCancel={() => {
+              pointerId.current = undefined;
+              onDragEnd(grocery.id);
+            }}
+            onKeyDown={event => {
+              if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+                event.preventDefault();
+                const row = event.currentTarget.closest<HTMLElement>('[data-grocery-id]');
+                const sibling = event.key === 'ArrowUp' ? row?.previousElementSibling : row?.nextElementSibling;
+                const targetId = sibling instanceof HTMLElement ? sibling.dataset.groceryId : undefined;
+                if (targetId) onMove(grocery.id, targetId, event.key === 'ArrowDown');
+              }
+            }}>
+            <span aria-hidden="true">⠿</span>
+          </button>
+        </div>
       </div>
     </li>
   );
