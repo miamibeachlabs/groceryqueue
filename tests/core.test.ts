@@ -8,11 +8,13 @@ import { LocalInventory } from '../src/infrastructure/LocalInventory.ts';
 const day = 86_400_000;
 const wholeFoods = { id: 'whole-foods', name: 'Whole Foods' };
 const traderJoes = { id: 'trader-joes', name: 'Trader Joe’s' };
+const optional = { restockKind: 'optional' as const, bufferDays: 0 };
 const milk: Grocery = {
   id: 'milk',
   name: 'Milk',
   storeIds: [wholeFoods.id],
   usualRestock: 1,
+  ...optional,
   tracker: InventoryTracker.start(1, 7, day),
 };
 
@@ -117,6 +119,7 @@ test('purchases and counts update inventory immutably', () => {
     name: 'Beef',
     storeIds: [traderJoes.id],
     usualRestock: 3,
+    ...optional,
     tracker: InventoryTracker.start(2, 2, day),
   };
   const inventory = { groceries: [milk, beef], stores: [wholeFoods, traderJoes] };
@@ -142,6 +145,7 @@ test('a late purchase refills inventory from zero', () => {
 test('manual placement can be released one item at a time', () => {
   const beef: Grocery = {
     id: 'beef', name: 'Beef', storeIds: [], usualRestock: 1,
+    ...optional,
     tracker: InventoryTracker.start(10, 10, 0),
   };
   const inventory = { groceries: [milk, beef], stores: [wholeFoods] };
@@ -160,10 +164,12 @@ test('manual placement can be released one item at a time', () => {
 test('manual items stay above the predicted queue until released', () => {
   const eggs: Grocery = {
     id: 'eggs', name: 'Eggs', storeIds: [], usualRestock: 12,
+    ...optional,
     tracker: InventoryTracker.start(1, 1, 0),
   };
   const beef: Grocery = {
     id: 'beef', name: 'Beef', storeIds: [], usualRestock: 1,
+    ...optional,
     tracker: InventoryTracker.start(10, 10, 0),
   };
   const inventory = { groceries: [milk, beef, eggs], stores: [wholeFoods] };
@@ -175,6 +181,28 @@ test('manual items stay above the predicted queue until released', () => {
   expect(Inventory.shoppingQueue(Inventory.releaseManualOrder(milkThenBeef, milk.id), 2 * day)
     .toArray().map(item => item.grocery.id))
     .toEqual([beef.id, eggs.id, milk.id]);
+});
+
+test('staples use their buffer before optional items demand attention', () => {
+  const potatoes: Grocery = {
+    id: 'potatoes', name: 'Potatoes', storeIds: [], usualRestock: 1,
+    restockKind: 'staple', bufferDays: 3,
+    tracker: InventoryTracker.start(3, 3, 0),
+  };
+  const rice: Grocery = {
+    id: 'rice', name: 'Rice', storeIds: [], usualRestock: 1,
+    restockKind: 'staple', bufferDays: 0,
+    tracker: InventoryTracker.start(2, 2, 0),
+  };
+  const vanilla: Grocery = {
+    id: 'vanilla', name: 'Vanilla', storeIds: [], usualRestock: 1,
+    ...optional,
+    tracker: InventoryTracker.startUnknown(0, 0),
+  };
+  const inventory = { groceries: [rice, vanilla, potatoes], stores: [wholeFoods] };
+
+  expect(Inventory.shoppingQueue(inventory, 0).toArray().map(item => item.grocery.id))
+    .toEqual([potatoes.id, rice.id, vanilla.id]);
 });
 
 test('store names remain unique and renaming can merge them', () => {
@@ -203,7 +231,17 @@ test('learned inventory has independent storage and round-trips', () => {
   const inventory = { groceries: [milk], stores: [wholeFoods] };
   repository.save(inventory);
   expect(repository.load()).toEqual(inventory);
-  expect(JSON.parse(stored ?? '').version).toBe(2);
+  expect(JSON.parse(stored ?? '').version).toBe(3);
+});
+
+test('saved version-two groceries receive the optional zero-buffer default', () => {
+  const { restockKind: _restockKind, bufferDays: _bufferDays, ...oldMilk } = milk;
+  const repository = new LocalInventory({
+    getItem: () => JSON.stringify({ version: 2, groceries: [oldMilk], stores: [wholeFoods] }),
+    setItem: () => {},
+  });
+
+  expect(repository.load().groceries[0]).toMatchObject(optional);
 });
 
 test('portable inventory exports round-trip and import leaves storage untouched until saved', () => {

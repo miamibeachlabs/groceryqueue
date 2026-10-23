@@ -24,6 +24,8 @@ const isPositive = (value: unknown): value is number =>
   typeof value === 'number' && Number.isFinite(value) && value > 0;
 const isRank = (value: unknown): value is number =>
   typeof value === 'number' && Number.isInteger(value) && value >= 0;
+const isRestockKind = (value: unknown): value is Grocery['restockKind'] =>
+  value === 'staple' || value === 'optional';
 
 const isTime = isNonnegative;
 
@@ -65,7 +67,9 @@ const isTracker = (value: unknown): value is Tracker => {
 const isStore = (value: unknown): value is Store =>
   isRecord(value) && isText(value.id) && isText(value.name);
 
-const isGrocery = (value: unknown): value is Grocery =>
+type PolicylessGrocery = Omit<Grocery, 'restockKind' | 'bufferDays'>;
+
+const isPolicylessGrocery = (value: unknown): value is PolicylessGrocery =>
   isRecord(value)
   && isText(value.id)
   && isText(value.name)
@@ -75,7 +79,15 @@ const isGrocery = (value: unknown): value is Grocery =>
   && (value.manualRank === undefined || isRank(value.manualRank))
   && isTracker(value.tracker);
 
-type LegacyGrocery = Omit<Grocery, 'tracker'> & Readonly<{ history: InventoryHistory }>;
+const hasRestockPolicy = (value: unknown): value is Pick<Grocery, 'restockKind' | 'bufferDays'> =>
+  isRecord(value)
+  && isRestockKind(value.restockKind)
+  && isNonnegative(value.bufferDays);
+
+const isGrocery = (value: unknown): value is Grocery =>
+  isPolicylessGrocery(value) && hasRestockPolicy(value);
+
+type LegacyGrocery = Omit<PolicylessGrocery, 'tracker'> & Readonly<{ history: InventoryHistory }>;
 
 const isLegacyGrocery = (value: unknown): value is LegacyGrocery =>
   isRecord(value)
@@ -101,8 +113,16 @@ const trackerFrom = (history: InventoryHistory): Tracker => {
   return tracker;
 };
 
+const withDefaultPolicy = (grocery: PolicylessGrocery): Grocery => ({
+  ...grocery,
+  restockKind: 'optional',
+  bufferDays: 0,
+});
+
 const currentGrocery = ({ history, ...grocery }: LegacyGrocery): Grocery => ({
   ...grocery,
+  restockKind: 'optional',
+  bufferDays: 0,
   tracker: trackerFrom(history),
 });
 
@@ -114,8 +134,10 @@ const inventoryFrom = (value: Record<string, unknown>): GroceryInventory | undef
   if (!Array.isArray(stores) || !stores.every(isStore)) return undefined;
   const groceries = value.groceries;
   if (!Array.isArray(groceries)) return undefined;
-  const current = value.version === 2 && groceries.every(isGrocery)
+  const current = value.version === 3 && groceries.every(isGrocery)
     ? groceries
+    : value.version === 2 && groceries.every(isPolicylessGrocery)
+      ? groceries.map(withDefaultPolicy)
     : value.version === 1 && groceries.every(isLegacyGrocery)
       ? groceries.map(currentGrocery)
       : undefined;
@@ -147,7 +169,7 @@ const encode = (inventory: GroceryInventory, exportedAt: number): string =>
     format: 'grocery-queue',
     schemaVersion: 1,
     exportedAt: new Date(exportedAt).toISOString(),
-    inventory: { version: 2, ...inventory },
+    inventory: { version: 3, ...inventory },
   }, null, 2);
 
 const decodeExport = (text: string): GroceryInventory => {
@@ -186,7 +208,7 @@ export class LocalInventory {
 
   save(inventory: GroceryInventory): void {
     try {
-      this.storage.setItem(key, JSON.stringify({ version: 2, ...inventory }));
+      this.storage.setItem(key, JSON.stringify({ version: 3, ...inventory }));
     } catch {
       throw new Error('Could not save. Your changes have not been applied.');
     }
