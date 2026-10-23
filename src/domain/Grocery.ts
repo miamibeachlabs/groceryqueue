@@ -99,13 +99,17 @@ const reorder = (
   ids: readonly string[],
   movedId: string,
 ): Inventory => {
-  const ranks = new Map(ids.map((id, index) => [id, index]));
   const manuallyPlaced = new Set([
     movedId,
     ...inventory.groceries
       .filter(grocery => grocery.manualRank !== undefined)
       .map(grocery => grocery.id),
   ]);
+  const ranks = new Map(
+    ids
+      .filter(id => manuallyPlaced.has(id))
+      .map((id, index) => [id, index]),
+  );
   return {
     ...inventory,
     groceries: inventory.groceries.map(grocery => {
@@ -178,16 +182,12 @@ const shoppingQueue = (
     : inventory.groceries;
 
   const predicted = visible.map(grocery => estimateAt(now, grocery)).sort(byUrgency);
-  const ordered = [...predicted];
   const manual = predicted
     .filter(estimate => estimate.grocery.manualRank !== undefined)
     .sort((left, right) => left.grocery.manualRank! - right.grocery.manualRank!);
 
-  for (const estimate of manual) {
-    const current = ordered.findIndex(item => item.grocery.id === estimate.grocery.id);
-    if (current >= 0) ordered.splice(current, 1);
-    ordered.splice(Math.min(estimate.grocery.manualRank!, ordered.length), 0, estimate);
-  }
+  const automatic = predicted.filter(estimate => estimate.grocery.manualRank === undefined);
+  const ordered = [...manual, ...automatic];
 
   const positions = new Map(ordered.map((estimate, index) => [estimate.grocery.id, index]));
   return SortedPriorityQueue.from(
