@@ -48,11 +48,10 @@ test('restock cadence determines the item learning timescale', () => {
 test('usage evidence has a half-life of one purchase cycle', () => {
   let tracker = InventoryTracker.start(10, 10, 0);
   tracker = InventoryTracker.restock(tracker, 10, 10 * day);
-  tracker = InventoryTracker.restock(tracker, 10, 20 * day);
-  const observation = InventoryTracker.observe(tracker, 10, 20 * day);
+  const observation = InventoryTracker.observe(tracker, 0, 20 * day);
 
-  expect(observation.tracker.usage.amount).toBe(22.5);
-  expect(observation.tracker.usage.days).toBe(22.5);
+  expect(observation.tracker.usage.amount).toBe(12.5);
+  expect(observation.tracker.usage.days).toBe(12.5);
 });
 
 test('several purchases in one shopping episode do not collapse the learning timescale', () => {
@@ -125,10 +124,19 @@ test('purchases and counts update inventory immutably', () => {
   const counted = Inventory.count(purchased, beef.id, 4, 3 * day);
 
   expect(purchased.groceries[1]?.usualRestock).toBe(4);
-  expect(purchased.groceries[1]?.tracker.anchor.boughtSince).toBe(4);
+  expect(purchased.groceries[1]?.tracker.anchor).toEqual({ amount: 5, at: 2 * day, boughtSince: 0 });
   expect(counted.groceries[1]?.tracker.anchor.amount).toBe(4);
   expect(inventory.groceries[1]?.usualRestock).toBe(3);
   expect(Inventory.shoppingQueue(inventory, day).peek()?.grocery.id).toBe('beef');
+});
+
+test('a late purchase refills inventory from zero', () => {
+  const tracker = InventoryTracker.restock(InventoryTracker.start(1, 1, 0), 4, 7 * day);
+
+  expect(InventoryTracker.estimateAt(tracker, 7 * day)).toMatchObject({
+    amount: 4,
+    daysLeft: 4,
+  });
 });
 
 test('manual placement can be released one item at a time', () => {
@@ -147,6 +155,26 @@ test('manual placement can be released one item at a time', () => {
     .find(item => item.id === beef.id)?.manualRank).toBeUndefined();
   expect(Inventory.usePredictedOrder(manual).groceries.every(item => item.manualRank === undefined))
     .toBe(true);
+});
+
+test('manual items stay above the predicted queue until released', () => {
+  const eggs: Grocery = {
+    id: 'eggs', name: 'Eggs', storeIds: [], usualRestock: 12,
+    tracker: InventoryTracker.start(1, 1, 0),
+  };
+  const beef: Grocery = {
+    id: 'beef', name: 'Beef', storeIds: [], usualRestock: 1,
+    tracker: InventoryTracker.start(10, 10, 0),
+  };
+  const inventory = { groceries: [milk, beef, eggs], stores: [wholeFoods] };
+  const beefFirst = Inventory.reorder(inventory, [beef.id, milk.id, eggs.id], beef.id);
+  const milkThenBeef = Inventory.reorder(beefFirst, [milk.id, beef.id, eggs.id], milk.id);
+
+  expect(Inventory.shoppingQueue(milkThenBeef, 2 * day).toArray().map(item => item.grocery.id))
+    .toEqual([milk.id, beef.id, eggs.id]);
+  expect(Inventory.shoppingQueue(Inventory.releaseManualOrder(milkThenBeef, milk.id), 2 * day)
+    .toArray().map(item => item.grocery.id))
+    .toEqual([beef.id, eggs.id, milk.id]);
 });
 
 test('store names remain unique and renaming can merge them', () => {

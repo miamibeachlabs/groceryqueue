@@ -89,7 +89,11 @@ const restock = (tracker: InventoryTracker, amount: number, at: number): Invento
     : tracker.cadence.intervals;
   return {
     ...tracker,
-    anchor: { ...tracker.anchor, boughtSince: tracker.anchor.boughtSince + amount },
+    anchor: {
+      amount: estimateAt(tracker, at).amount + amount,
+      at,
+      boughtSince: 0,
+    },
     cadence: { ...tracker.cadence, lastAt: at, intervals },
     updatedAt: at,
   };
