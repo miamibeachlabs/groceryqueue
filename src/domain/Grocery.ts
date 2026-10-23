@@ -10,11 +10,15 @@ import {
 } from './InventoryTracker.ts';
 import { Stores, type Store, type StoreCatalog } from './Store.ts';
 
+export type RestockKind = 'staple' | 'optional';
+
 export type Grocery = Readonly<{
   id: string;
   name: string;
   storeIds: readonly string[];
   usualRestock: number;
+  restockKind: RestockKind;
+  bufferDays: number;
   manualRank?: number;
   tracker: Tracker;
 }>;
@@ -46,10 +50,15 @@ const estimateAt = (now: number, grocery: Grocery): GroceryEstimate => ({
   tomorrow: InventoryTracker.estimateAt(grocery.tracker, now + day),
 });
 
+const kindRank = (grocery: Grocery): number =>
+  grocery.restockKind === 'staple' ? 0 : 1;
+
+const attentionIn = (estimate: GroceryEstimate): number =>
+  estimate.today.daysLeft - estimate.grocery.bufferDays;
+
 const byUrgency: Comparator<GroceryEstimate> = (left, right) =>
-  left.today.daysLeft < right.today.daysLeft ? -1
-    : left.today.daysLeft > right.today.daysLeft ? 1
-    : 0;
+  kindRank(left.grocery) - kindRank(right.grocery)
+    || attentionIn(left) - attentionIn(right);
 
 const update = (
   inventory: Inventory,

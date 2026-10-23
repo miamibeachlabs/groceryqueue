@@ -1,5 +1,5 @@
 import { useState } from 'preact/hooks';
-import type { Grocery } from '../domain/Grocery.ts';
+import type { Grocery, RestockKind } from '../domain/Grocery.ts';
 import { InventoryTracker } from '../domain/InventoryTracker.ts';
 import type { Store, StoreCatalog } from '../domain/Store.ts';
 import { StorePicker } from './StorePicker.tsx';
@@ -37,6 +37,7 @@ export const GroceryForm = ({
 }: Props) => {
   const [unit, setUnit] = useState<TimeUnit>('week');
   const [storeIds, setStoreIds] = useState<readonly string[]>(grocery?.storeIds ?? []);
+  const [restockKind, setRestockKind] = useState<RestockKind>(grocery?.restockKind ?? 'optional');
   const [error, setError] = useState('');
   const [confirmingRemoval, setConfirmingRemoval] = useState(false);
 
@@ -45,13 +46,15 @@ export const GroceryForm = ({
     const form = new FormData(event.currentTarget as HTMLFormElement);
     const name = valueOf(form, 'name').trim();
     const usualRestock = optionalNumber(form, 'usualRestock') ?? 1;
-    if (!name || !Number.isFinite(usualRestock) || usualRestock <= 0) {
-      setError('Enter a name and a positive usual purchase amount.');
+    const bufferDays = optionalNumber(form, 'bufferDays') ?? 0;
+    if (!name || !Number.isFinite(usualRestock) || usualRestock <= 0
+      || !Number.isFinite(bufferDays) || bufferDays < 0) {
+      setError('Enter a name, a positive usual purchase amount, and zero or more buffer days.');
       return;
     }
 
     if (grocery) {
-      const saveError = onSave({ ...grocery, name, storeIds, usualRestock });
+      const saveError = onSave({ ...grocery, name, storeIds, usualRestock, restockKind, bufferDays });
       if (saveError) setError(saveError);
       return;
     }
@@ -69,6 +72,8 @@ export const GroceryForm = ({
       name,
       storeIds,
       usualRestock,
+      restockKind,
+      bufferDays,
       tracker: interval === undefined
         ? InventoryTracker.startUnknown(amount, Date.now())
         : InventoryTracker.start(amount, interval * (unit === 'week' ? 7 : 1), Date.now()),
@@ -112,6 +117,23 @@ export const GroceryForm = ({
           <input name="usualRestock" type="number" inputMode="decimal" min="0.01"
             step="any" defaultValue={grocery?.usualRestock} placeholder="1" />
         </label>
+        <fieldset class="restock-policy">
+          <legend>Restock</legend>
+          <label>
+            <span>Kind</span>
+            <select name="restockKind" value={restockKind}
+              onInput={event => setRestockKind(event.currentTarget.value === 'staple' ? 'staple' : 'optional')}>
+              <option value="staple">Staple</option>
+              <option value="optional">Optional</option>
+            </select>
+          </label>
+          <label>
+            <span>Buffer days</span>
+            <input name="bufferDays" type="number" inputMode="decimal" min="0" step="any"
+              defaultValue={grocery?.bufferDays ?? 0} />
+          </label>
+          <p class="field-help">Surface this item before it runs out. Optional items stay below staples.</p>
+        </fieldset>
         <StorePicker stores={stores} selected={storeIds} onSelect={setStoreIds}
           onAdd={onAddStore} onRename={onRenameStore} />
         {error && <p class="error" role="alert">{error}</p>}
