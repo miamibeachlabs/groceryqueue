@@ -75,13 +75,18 @@ export const GroceryRow = ({
     <li class={`${urgency(daysLeft)}${dragging ? ' dragging' : ''}${dropPosition ? ` drop-${dropPosition}` : ''}`}
       data-grocery-id={grocery.id}>
       <div class="item-description">
-        <h2>
-          {grocery.name}
-          {grocery.manualRank !== undefined &&
-            <span class="manual-badge">
-              Manual <button type="button" onClick={() => onReleaseManualOrder(grocery.id)}>Release</button>
-            </span>}
-        </h2>
+        <div class="item-heading">
+          <h2>{grocery.name}</h2>
+          <div class="item-details">
+            {grocery.manualRank !== undefined &&
+              <span class="manual-badge">
+                Manual <button type="button" onClick={() => onReleaseManualOrder(grocery.id)}>Release</button>
+              </span>}
+            <button class="edit-details" type="button" onClick={() => onEdit(grocery)}>
+              <span class="wide-label">Edit details</span><span class="phone-label">Edit</span>
+            </button>
+          </div>
+        </div>
         <div class="amount-line">
           <p>About {number.format(amount)} left</p>
           <button class="primary compact" type="button" onClick={() => onCount(grocery)}>
@@ -98,15 +103,6 @@ export const GroceryRow = ({
           Uses about {number.format(today.dailyUse)} per day
           <button type="button" onClick={() => onRate(grocery)}>Adjust rate</button>
         </p>
-        <div class="depletion" role="img"
-          aria-label={`${duration(daysLeft)} today; ${duration(tomorrow.daysLeft)} tomorrow; seven-day scale`}>
-          <span class="today" style={{ width: `${positionOnHorizon(daysLeft)}%` }} />
-          <span class="tomorrow" style={{ width: `${positionOnHorizon(tomorrow.daysLeft)}%` }} />
-        </div>
-        <div class="depletion-caption">
-          <p class="depletion-key"><span>Today</span><span>Tomorrow</span></p>
-          <p class="depletion-scale"><span>0</span><span>7 days</span></p>
-        </div>
       </div>
       <div class="item-action">
         <span class="time-left">{duration(daysLeft)}</span>
@@ -118,9 +114,6 @@ export const GroceryRow = ({
             <span class="wide-label">Bought other</span><span class="phone-label">Bought…</span>
           </button>
         </div>
-        <button class="edit-details" type="button" onClick={() => onEdit(grocery)}>
-          <span class="wide-label">Edit details</span><span class="phone-label">Edit</span>
-        </button>
         <div class="reorder-actions">
           <button class="move-top" type="button" onClick={() => onMoveToTop(grocery.id)}
             aria-label={`Move ${grocery.name} to the top of the queue`} title="Move to top">
@@ -162,6 +155,17 @@ export const GroceryRow = ({
             }}>
             <span aria-hidden="true">⠿</span>
           </button>
+        </div>
+      </div>
+      <div class="depletion-summary">
+        <div class="depletion" role="img"
+          aria-label={`${duration(daysLeft)} today; ${duration(tomorrow.daysLeft)} tomorrow; seven-day scale`}>
+          <span class="today" style={{ width: `${positionOnHorizon(daysLeft)}%` }} />
+          <span class="tomorrow" style={{ width: `${positionOnHorizon(tomorrow.daysLeft)}%` }} />
+        </div>
+        <div class="depletion-caption">
+          <p class="depletion-key"><span>Today</span><span>Tomorrow</span></p>
+          <p class="depletion-scale"><span>0</span><span>7 days</span></p>
         </div>
       </div>
     </li>
